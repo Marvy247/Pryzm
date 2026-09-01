@@ -39,7 +39,7 @@ export const createServer = () => {
   app.use('/api', apiRoutes);
 
   // Root route
-  app.get('/', (req, res) => {
+  app.get('/', (req: Request, res: Response) => {
     res.json({ 
       service: 'Pryzm EC Backend', 
       version: '1.0.0',
