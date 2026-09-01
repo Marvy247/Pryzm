@@ -1,0 +1,262 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.airdrops (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  ticker text,
+  contract text,
+  chain text NOT NULL,
+  type text NOT NULL,
+  why_promising text,
+  tasks text,
+  deadline_or_phase text,
+  est_value_usd text,
+  link_dashboard text UNIQUE,
+  link_tg text,
+  link_x text,
+  rogue_score integer NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT airdrops_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.chat_jobs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_wallet_address text NOT NULL,
+  message text NOT NULL,
+  context jsonb,
+  history jsonb,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'processing'::text, 'completed'::text, 'failed'::text])),
+  response text,
+  source text,
+  error_message text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  started_at timestamp with time zone,
+  completed_at timestamp with time zone,
+  CONSTRAINT chat_jobs_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.custom_requests (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_wallet_address text NOT NULL,
+  token_symbol text NOT NULL,
+  token_contract text,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'processing'::text, 'completed'::text, 'failed'::text])),
+  analysis_result jsonb,
+  delivered_at timestamp with time zone,
+  error_message text,
+  requested_at timestamp with time zone NOT NULL DEFAULT now(),
+  completed_at timestamp with time zone,
+  CONSTRAINT custom_requests_pkey PRIMARY KEY (id),
+  CONSTRAINT custom_requests_user_wallet_address_fkey FOREIGN KEY (user_wallet_address) REFERENCES public.users(wallet_address)
+);
+CREATE TABLE public.futures_agents (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_wallet_address text NOT NULL,
+  name text NOT NULL,
+  type text NOT NULL CHECK (type = ANY (ARRAY['classic'::text, 'custom'::text])),
+  is_active boolean NOT NULL DEFAULT false,
+  risk_per_trade numeric NOT NULL DEFAULT 1 CHECK (risk_per_trade >= 0.5 AND risk_per_trade <= 5::numeric),
+  max_concurrent_positions integer NOT NULL DEFAULT 3 CHECK (max_concurrent_positions >= 1 AND max_concurrent_positions <= 10),
+  max_leverage integer NOT NULL DEFAULT 20 CHECK (max_leverage >= 1 AND max_leverage <= 100),
+  custom_prompt text,
+  stats jsonb NOT NULL DEFAULT '{"total_trades": 0, "trades_today": 0, "last_trade_at": null, "losing_trades": 0, "total_pnl_usd": 0, "winning_trades": 0, "total_pnl_percent": 0, "max_drawdown_percent": 0}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT futures_agents_pkey PRIMARY KEY (id),
+  CONSTRAINT futures_agents_user_wallet_address_fkey FOREIGN KEY (user_wallet_address) REFERENCES public.users(wallet_address)
+);
+CREATE TABLE public.futures_api_keys (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_wallet_address text NOT NULL UNIQUE,
+  encrypted_api_key text NOT NULL,
+  encrypted_api_secret text NOT NULL,
+  is_active boolean NOT NULL DEFAULT true,
+  last_tested_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  hyperliquid_wallet_address text NOT NULL,
+  network_mode text NOT NULL DEFAULT 'testnet'::text CHECK (network_mode = ANY (ARRAY['mainnet'::text, 'testnet'::text])),
+  CONSTRAINT futures_api_keys_pkey PRIMARY KEY (id),
+  CONSTRAINT futures_api_keys_user_wallet_address_fkey FOREIGN KEY (user_wallet_address) REFERENCES public.users(wallet_address)
+);
+CREATE TABLE public.futures_positions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_wallet_address text NOT NULL,
+  agent_id uuid,
+  symbol text NOT NULL,
+  direction text NOT NULL CHECK (direction = ANY (ARRAY['LONG'::text, 'SHORT'::text])),
+  entry_price numeric NOT NULL,
+  current_price numeric NOT NULL,
+  quantity numeric NOT NULL,
+  leverage integer NOT NULL,
+  unrealized_pnl numeric NOT NULL DEFAULT 0,
+  unrealized_pnl_percent numeric NOT NULL DEFAULT 0,
+  liquidation_price numeric NOT NULL,
+  tp_price numeric,
+  sl_price numeric,
+  tp_order_id text,
+  sl_order_id text,
+  margin_type text NOT NULL DEFAULT 'isolated'::text CHECK (margin_type = ANY (ARRAY['isolated'::text, 'cross'::text])),
+  opened_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT futures_positions_pkey PRIMARY KEY (id),
+  CONSTRAINT futures_positions_user_wallet_address_fkey FOREIGN KEY (user_wallet_address) REFERENCES public.users(wallet_address),
+  CONSTRAINT futures_positions_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES public.futures_agents(id)
+);
+CREATE TABLE public.futures_trades (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  agent_id uuid NOT NULL,
+  user_wallet_address text NOT NULL,
+  signal_id text NOT NULL,
+  symbol text NOT NULL,
+  direction text NOT NULL CHECK (direction = ANY (ARRAY['LONG'::text, 'SHORT'::text])),
+  entry_price numeric NOT NULL,
+  exit_price numeric,
+  quantity numeric NOT NULL,
+  leverage integer NOT NULL,
+  risk_percent numeric NOT NULL,
+  pnl_usd numeric,
+  pnl_percent numeric,
+  status text NOT NULL DEFAULT 'open'::text CHECK (status = ANY (ARRAY['pending'::text, 'open'::text, 'tp_hit'::text, 'sl_hit'::text, 'closed'::text, 'error'::text])),
+  entry_order_id text NOT NULL,
+  tp_order_id text,
+  sl_order_id text,
+  error_message text,
+  opened_at timestamp with time zone NOT NULL DEFAULT now(),
+  closed_at timestamp with time zone,
+  pending_tp_price numeric,
+  pending_sl_price numeric,
+  network_mode text NOT NULL DEFAULT 'testnet'::text CHECK (network_mode = ANY (ARRAY['mainnet'::text, 'testnet'::text])),
+  CONSTRAINT futures_trades_pkey PRIMARY KEY (id),
+  CONSTRAINT futures_trades_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES public.futures_agents(id),
+  CONSTRAINT futures_trades_user_wallet_address_fkey FOREIGN KEY (user_wallet_address) REFERENCES public.users(wallet_address)
+);
+CREATE TABLE public.iqai_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  content text NOT NULL,
+  type text NOT NULL DEFAULT 'Agent'::text,
+  tx_hash text,
+  chain_id text,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'processing'::text, 'completed'::text, 'failed'::text])),
+  retry_count integer NOT NULL DEFAULT 0,
+  error_message text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT iqai_logs_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.prediction_markets_cache (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  market_id text NOT NULL UNIQUE,
+  platform text NOT NULL CHECK (platform = ANY (ARRAY['Polymarket'::text, 'Azuro'::text, 'SX Network'::text, 'Degen'::text])),
+  title text NOT NULL,
+  description text,
+  category text,
+  yes_price numeric NOT NULL CHECK (yes_price >= 0::numeric AND yes_price <= 1::numeric),
+  implied_probability numeric NOT NULL CHECK (implied_probability >= 0::numeric AND implied_probability <= 100::numeric),
+  rogue_probability numeric CHECK (rogue_probability >= 0::numeric AND rogue_probability <= 100::numeric),
+  edge_percent numeric CHECK (edge_percent >= '-100'::integer::numeric AND edge_percent <= 100::numeric),
+  recommended_bet text CHECK (recommended_bet = ANY (ARRAY['BUY YES'::text, 'BUY NO'::text, 'HOLD'::text])),
+  confidence_score integer CHECK (confidence_score >= 0 AND confidence_score <= 100),
+  volume_usd numeric DEFAULT 0,
+  liquidity_usd numeric DEFAULT 0,
+  expiration_date timestamp with time zone,
+  market_url text NOT NULL,
+  image_url text,
+  is_active boolean NOT NULL DEFAULT true,
+  raw_data jsonb,
+  analysis_reasoning text,
+  last_analyzed_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT prediction_markets_cache_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.runs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  type text NOT NULL CHECK (type = ANY (ARRAY['signal'::text, 'intel'::text, 'skip'::text, 'deep_dive'::text])),
+  content jsonb NOT NULL,
+  public_posted_at timestamp with time zone,
+  telegram_delivered_at timestamp with time zone,
+  confidence_score integer CHECK (confidence_score >= 1 AND confidence_score <= 100),
+  cycle_started_at timestamp with time zone NOT NULL DEFAULT now(),
+  cycle_completed_at timestamp with time zone,
+  execution_time_ms integer,
+  error_message text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT runs_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.scheduled_posts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  run_id uuid NOT NULL,
+  tier text NOT NULL CHECK (tier = ANY (ARRAY['SILVER'::text, 'GOLD'::text, 'DIAMOND'::text, 'PUBLIC'::text])),
+  content text NOT NULL,
+  scheduled_for timestamp with time zone NOT NULL,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'posted'::text, 'failed'::text])),
+  posted_at timestamp with time zone,
+  error_message text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT scheduled_posts_pkey PRIMARY KEY (id),
+  CONSTRAINT scheduled_posts_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.runs(id)
+);
+CREATE TABLE public.signal_jobs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_wallet_address text NOT NULL,
+  agent_id uuid NOT NULL,
+  signal_id text NOT NULL,
+  signal_data jsonb NOT NULL,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'processing'::text, 'completed'::text, 'failed'::text, 'skipped'::text])),
+  should_trade boolean,
+  evaluation_reason text,
+  evaluation_confidence integer,
+  trade_id uuid,
+  trade_error text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  started_at timestamp with time zone,
+  completed_at timestamp with time zone,
+  CONSTRAINT signal_jobs_pkey PRIMARY KEY (id),
+  CONSTRAINT signal_jobs_user_wallet_address_fkey FOREIGN KEY (user_wallet_address) REFERENCES public.users(wallet_address),
+  CONSTRAINT signal_jobs_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES public.futures_agents(id),
+  CONSTRAINT signal_jobs_trade_id_fkey FOREIGN KEY (trade_id) REFERENCES public.futures_trades(id)
+);
+CREATE TABLE public.tier_snapshots (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  run_id uuid NOT NULL,
+  tier text NOT NULL CHECK (tier = ANY (ARRAY['SILVER'::text, 'GOLD'::text, 'DIAMOND'::text])),
+  delivered_at timestamp with time zone NOT NULL,
+  recipient_count integer NOT NULL DEFAULT 0,
+  CONSTRAINT tier_snapshots_pkey PRIMARY KEY (id),
+  CONSTRAINT tier_snapshots_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.runs(id)
+);
+CREATE TABLE public.users (
+  wallet_address text NOT NULL,
+  telegram_user_id bigint UNIQUE,
+  telegram_username text,
+  tier text NOT NULL DEFAULT 'NONE'::text CHECK (tier = ANY (ARRAY['NONE'::text, 'SILVER'::text, 'GOLD'::text, 'DIAMOND'::text])),
+  rge_balance_usd numeric,
+  last_verified_at timestamp with time zone,
+  joined_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  temp_diamond_expires_at timestamp with time zone,
+  CONSTRAINT users_pkey PRIMARY KEY (wallet_address)
+);
+CREATE TABLE public.x_api_rate_limits (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  service text NOT NULL DEFAULT 'twitter'::text UNIQUE,
+  user_limit_reset timestamp with time zone,
+  app_limit_reset timestamp with time zone,
+  is_rate_limited boolean NOT NULL DEFAULT false,
+  last_updated timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT x_api_rate_limits_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.yield_opportunities (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  pool_id text NOT NULL UNIQUE,
+  protocol text NOT NULL,
+  chain text NOT NULL,
+  symbol text NOT NULL,
+  apy numeric NOT NULL,
+  tvl numeric NOT NULL,
+  risk_level text NOT NULL CHECK (risk_level = ANY (ARRAY['Low'::text, 'Medium'::text, 'High'::text, 'Degen'::text])),
+  analysis text,
+  url text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT yield_opportunities_pkey PRIMARY KEY (id)
+);
