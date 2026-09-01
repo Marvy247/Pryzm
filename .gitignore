@@ -1,0 +1,45 @@
+# Node.js
+node_modules/
+dist/
+build/
+*.log
+.env
+.env.local
+.env.*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Build
+dist/
+build/
+out/
+
+# Terraform
+.terraform/
+*.tfstate*
+*.tfvars
+
+# Secrets
+secrets/
+*.key
+*.crt
+convert-cookies-to-b64.md
+x-documentation
+CodeForgeAI
