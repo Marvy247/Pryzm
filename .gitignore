@@ -43,3 +43,8 @@ secrets/
 convert-cookies-to-b64.md
 x-documentation
 CodeForgeAI
+
+# Generated files
+backend/output/
+dashboard/.git-template-backup/
+dashboard/public/snapshot/
