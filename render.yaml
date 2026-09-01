@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: pryzm-ec-backend
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_BASE_URL
+        value: https://gpt1.shupremium.com/v1
+      - key: OPENAI_MODEL
+        value: gpt-4o
+      - key: SOMNIA_PRIVATE_KEY
+        sync: false
+      - key: SOMNIA_WALLET_ADDRESS
+        sync: false
+      - key: SOMNIA_RPC_URL
+        value: https://dream-rpc.somnia.network
+      - key: SOMNIA_WS_RPC_URL
+        value: wss://dream-rpc.somnia.network/ws
+      - key: SOMNIA_INDEXER_URL
+        value: https://indexer.dreamdex.io
+      - key: SOMNIA_VENUE_ID
+        value: "1"
+      - key: EC_MIN_EDGE_PERCENT
+        value: "10"
+      - key: EC_MAX_POSITION_SIZE_USD
+        value: "20"
+      - key: EC_MAX_DRAWDOWN_PERCENT
+        value: "30"
+      - key: EC_MIN_EXPIRY_HEADROOM_SECONDS
+        value: "300"
+      - key: EC_RUN_INTERVAL_MINUTES
+        value: "5"
+      - key: TAVILY_API_KEY
+        sync: false
