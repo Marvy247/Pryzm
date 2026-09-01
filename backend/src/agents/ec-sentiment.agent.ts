@@ -1,6 +1,6 @@
 import { AgentBuilder } from '@iqai/adk';
 import { scannerLlm } from '../config/llm.config';
-import { z } from 'zod';
+const z = require('@iqai/adk/node_modules/zod');
 import dedent from 'dedent';
 import { searchTavilyTool } from './ec-tools';
 

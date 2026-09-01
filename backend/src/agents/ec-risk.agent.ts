@@ -1,7 +1,7 @@
 import { AgentBuilder } from '@iqai/adk';
 import { createTool } from '@iqai/adk';
 import { llm } from '../config/llm.config';
-import { z } from 'zod';
+const z = require('@iqai/adk/node_modules/zod');
 import dedent from 'dedent';
 import { supabaseService } from '../services/supabase.service';
 import { dreamDexService } from '../services/dreamdex.service';

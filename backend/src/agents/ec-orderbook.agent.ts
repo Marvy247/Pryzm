@@ -1,7 +1,7 @@
 import { AgentBuilder } from '@iqai/adk';
 import { createTool } from '@iqai/adk';
 import { llm } from '../config/llm.config';
-import { z } from 'zod';
+const z = require('@iqai/adk/node_modules/zod');
 import dedent from 'dedent';
 import { dreamDexService } from '../services/dreamdex.service';
 import type { LiveMarket } from '../services/dreamdex.service';
