@@ -129,7 +129,7 @@ export function TrackRecord({ stats, recentPositions = [] }: TrackRecordProps) {
                         {pos.marketId.slice(0, 8)}...
                       </p>
                       <p className="text-xs text-slate-500">
-                        Entry: {(pos.entryPrice * 100).toFixed(0)}¢
+                        Entry: {((pos.entryPrice ?? 0.5) * 100).toFixed(0)}¢
                       </p>
                     </div>
                   </div>
@@ -148,7 +148,7 @@ export function TrackRecord({ stats, recentPositions = [] }: TrackRecordProps) {
                         "text-sm font-semibold mt-1",
                         pos.pnlUsd >= 0 ? "text-emerald-600" : "text-red-600"
                       )}>
-                        {pos.pnlUsd >= 0 ? '+' : ''}{pos.pnlUsd.toFixed(4)} STT
+                        {(pos.pnlUsd ?? 0) >= 0 ? '+' : ''}{(pos.pnlUsd ?? 0).toFixed(4)} STT
                       </p>
                     )}
                   </div>

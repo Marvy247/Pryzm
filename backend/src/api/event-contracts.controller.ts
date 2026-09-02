@@ -79,7 +79,21 @@ router.get('/positions', async (_req: Request, res: Response) => {
       .eq('status', 'open')
       .order('created_at', { ascending: false });
     if (error) throw error;
-    res.json({ positions: data ?? [] });
+
+    const positions = (data ?? []).map((row: any) => ({
+      id: row.id,
+      marketId: row.market_id,
+      side: row.side === 'UP' ? 'yes' : 'no',
+      entryPrice: row.entry_price ?? 0.5,
+      currentPrice: row.entry_price ?? 0.5,
+      size: row.size_usd ?? 0,
+      pnlUsd: 0,
+      status: row.status,
+      createdAt: row.created_at,
+      settledAt: row.settled_at,
+    }));
+
+    res.json({ positions });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
@@ -103,7 +117,18 @@ router.get('/history', async (req: Request, res: Response) => {
     const winRate = (won + lost) > 0 ? won / (won + lost) : null;
 
     res.json({
-      positions: data ?? [],
+      positions: (data ?? []).map((row: any) => ({
+        id: row.id,
+        marketId: row.market_id,
+        side: row.side === 'UP' ? 'yes' : 'no',
+        entryPrice: row.entry_price ?? 0.5,
+        currentPrice: row.entry_price ?? 0.5,
+        size: row.size_usd ?? 0,
+        pnlUsd: row.pnl_usd ?? 0,
+        status: row.status,
+        createdAt: row.created_at,
+        settledAt: row.settled_at,
+      })),
       stats: { totalPnl, won, lost, winRate, total: data?.length ?? 0 },
     });
   } catch (err) {

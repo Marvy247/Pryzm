@@ -299,13 +299,13 @@ export default function EventContractsPage() {
                         <div>
                           <p className="font-medium text-slate-900">{pos.marketId}</p>
                           <p className="text-sm text-slate-500">
-                            Entry: {(pos.entryPrice * 100).toFixed(0)}¢ | Current: {(pos.currentPrice * 100).toFixed(0)}¢
+                            Entry: {((pos.entryPrice ?? 0.5) * 100).toFixed(0)}¢ | Current: {((pos.currentPrice ?? pos.entryPrice ?? 0.5) * 100).toFixed(0)}¢
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className={`font-semibold ${pos.pnlUsd >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {pos.pnlUsd >= 0 ? '+' : ''}{pos.pnlUsd.toFixed(4)} STT
+                        <p className={`font-semibold ${(pos.pnlUsd ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {(pos.pnlUsd ?? 0) >= 0 ? '+' : ''}{(pos.pnlUsd ?? 0).toFixed(4)} STT
                         </p>
                         <p className="text-xs text-slate-500">{pos.size} STT size</p>
                       </div>
