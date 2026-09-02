@@ -69,6 +69,21 @@ class ECOrchestratorService extends EventEmitter {
     let ordersPlaced = 0;
 
     try {
+      // ── Step 0: Close expired positions ────────────────────────────────────
+      const now = Math.floor(Date.now() / 1000);
+      const { data: expiredPositions } = await supabaseService.getClient()
+        .from('ec_positions')
+        .select('id, label')
+        .eq('status', 'open')
+        .lt('expiry', now);
+      if (expiredPositions && expiredPositions.length > 0) {
+        await supabaseService.getClient()
+          .from('ec_positions')
+          .update({ status: 'expired', settled_at: new Date().toISOString() })
+          .in('id', expiredPositions.map((p: any) => p.id));
+        this.log(`Closed ${expiredPositions.length} expired positions`, 'info');
+      }
+
       // ── Step 1: Scan live markets ──────────────────────────────────────────
       this.log('Scanning live DreamDEX Event Contract markets...', 'info');
 
