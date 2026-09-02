@@ -15,12 +15,12 @@ export const SOMNIA_CHAIN = {
 export const EC_ASSETS = ['BTC', 'ETH'] as const;
 export type ECAsset = typeof EC_ASSETS[number];
 
-// The two window cadences in seconds
-export const EC_CADENCES = [900, 3600] as const; // 15m = 900s, 1h = 3600s
+// Supported window cadences in seconds
+export const EC_CADENCES = [60, 300, 900, 3600] as const; // 1m, 5m, 15m, 1h
 export type ECCadence = typeof EC_CADENCES[number];
 
 export const cadenceLabel = (intervalSec: number): string =>
-  intervalSec === 900 ? '15m' : intervalSec === 3600 ? '1h' : `${intervalSec}s`;
+  intervalSec === 60 ? '1m' : intervalSec === 300 ? '5m' : intervalSec === 900 ? '15m' : intervalSec === 3600 ? '1h' : `${intervalSec}s`;
 
 // Market key used throughout the app — never use pool address
 export const marketKey = (asset: string, intervalSec: number): string =>
