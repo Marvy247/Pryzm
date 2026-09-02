@@ -140,7 +140,7 @@ class ECOrchestratorService extends EventEmitter {
       const edgeAnalyses = [];
       for (const m of scanResult.markets) {
         try {
-          const result = await (computeFairProbabilityTool as any).fn({
+          const result = await (computeFairProbabilityTool as any).func({
             asset: m.asset,
             intervalSec: m.intervalSec,
             impliedUpProbability: m.impliedUpProbability ?? 0.5,
@@ -168,7 +168,7 @@ class ECOrchestratorService extends EventEmitter {
       const bookAnalyses = [];
       for (const m of scanResult.markets) {
         try {
-          const result = await (analyzeOrderBookTool as any).fn(m);
+          const result = await (analyzeOrderBookTool as any).func(m);
           bookAnalyses.push(result);
         } catch (e) {
           this.log(`Order book analysis failed for ${m.label}: ${e}`, 'warning');
