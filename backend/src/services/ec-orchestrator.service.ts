@@ -14,11 +14,7 @@
 // Settlement runs separately every 5 minutes via startSettlementTimer().
 
 import { EventEmitter } from 'events';
-import { ECEdgeCalculatorAgent } from '../agents/ec-edge-calculator.agent';
 import { ECSentimentAgent } from '../agents/ec-sentiment.agent';
-import { ECOrderBookAgent } from '../agents/ec-orderbook.agent';
-import { ECRiskAgent } from '../agents/ec-risk.agent';
-import { ECExecutorAgent } from '../agents/ec-executor.agent';
 import { ECSettlementAgent } from '../agents/ec-settlement.agent';
 import { supabaseService } from './supabase.service';
 import { dreamDexService } from './dreamdex.service';
@@ -270,49 +266,50 @@ class ECOrchestratorService extends EventEmitter {
 
       // ── Step 7: Execute trades ─────────────────────────────────────────────
       this.log('Executing approved trades...', 'info');
-      await new Promise(r => setTimeout(r, 5000));
-      let execResult: any = null;
-      try {
-        const { runner: execRunner } = await ECExecutorAgent.build();
 
-      const executionPayload = approvedTrades.map((approved: any) => {
+      // Bypass LLM — call execution tool directly
+      const { executeECTradeTool } = await import('../agents/ec-executor.agent');
+      const executions = [];
+
+      for (const approved of approvedTrades) {
         const analysis = combinedAnalyses.find((a: any) => a.marketId === approved.marketId);
         const market = analysis?.market;
+        if (!market) {
+          executions.push({ success: false, label: approved.label, error: 'Market data not found' });
+          continue;
+        }
         const bookData = analysis?.bookData;
         const side = approved.side ?? analysis?.finalRecommendedSide;
         const limitPrice = side === 'UP'
           ? (bookData?.bestAsk ?? (analysis?.impliedUpProbability + 0.02))
           : (1 - (bookData?.bestBid ?? (1 - analysis?.impliedUpProbability + 0.02)));
 
-        return {
-          market,
-          side,
-          sizeUsd: approved.approvedSizeUsd,
-          limitPrice: parseFloat(limitPrice.toFixed(4)),
-          fairProbability: analysis?.finalFairProbability,
-          impliedProbability: analysis?.impliedUpProbability,
-          edgePercent: analysis?.finalEdgePercent,
-          scorecard: analysis?.signals ?? [],
-          reasoning: `${analysis?.label} ${side}: fair prob ${(analysis?.finalFairProbability * 100).toFixed(1)}% vs implied ${(analysis?.impliedUpProbability * 100).toFixed(1)}%. Edge: ${analysis?.finalEdgePercent?.toFixed(1)}%. ${analysis?.signals?.filter((s: any) => Math.abs(s.contribution) > 0).map((s: any) => `${s.name}: ${s.contribution > 0 ? '+' : ''}${(s.contribution * 100).toFixed(1)}%`).join(', ')}`,
-        };
-      });
-
-      const execResult: any = await execRunner.ask(
-        `Execute these approved trades:\n${JSON.stringify(executionPayload, null, 2)}`
-      );
-
-      ordersPlaced = execResult?.totalExecuted ?? 0;
-
-      execResult?.executions?.forEach((e: any) => {
-        if (e.success) {
-          this.log(`Executed: ${e.label} ${e.side} @ ${e.price?.toFixed(4)}, $${e.sizeUsd}, tx: ${e.txHash}`, 'success');
-        } else {
-          this.log(`Failed: ${e.label} — ${e.error}`, 'error');
+        try {
+          const result = await (executeECTradeTool as any).func({
+            market,
+            side,
+            sizeUsd: approved.approvedSizeUsd,
+            limitPrice: parseFloat(limitPrice.toFixed(4)),
+            fairProbability: analysis?.finalFairProbability,
+            impliedProbability: analysis?.impliedUpProbability,
+            edgePercent: analysis?.finalEdgePercent,
+            scorecard: analysis?.signals ?? [],
+            reasoning: `${analysis?.label} ${side}: fair ${(analysis?.finalFairProbability * 100).toFixed(1)}% vs implied ${(analysis?.impliedUpProbability * 100).toFixed(1)}%. Edge: ${analysis?.finalEdgePercent?.toFixed(1)}%`,
+          });
+          executions.push({ ...result, label: approved.label });
+          if (result.success) {
+            this.log(`Executed: ${result.label} ${result.side} @ ${result.price?.toFixed(4)}, $${result.sizeUsd}, tx: ${result.txHash}`, 'success');
+          } else {
+            this.log(`Failed: ${result.label} — ${result.error}`, 'error');
+          }
+        } catch (e) {
+          this.log(`Execution failed for ${approved.label}: ${e}`, 'error');
+          executions.push({ success: false, label: approved.label, error: String(e) });
         }
-      });
-      } catch (e) {
-        this.log(`Executor agent failed: ${e}`, 'warning');
       }
+
+      ordersPlaced = executions.filter((e: any) => e.success).length;
+      const execResult = { executions, totalExecuted: ordersPlaced };
 
       // ── Finalize ───────────────────────────────────────────────────────────
       const summary = `Scanned ${marketsScanned} markets, found ${edgesFound} edges, executed ${ordersPlaced} trades`;
