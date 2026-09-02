@@ -255,9 +255,13 @@ class DreamDexService {
    * Bypasses the dead GraphQL indexer — reads directly from chain via RPC.
    */
   async getLiveMarkets(): Promise<LiveMarket[]> {
-    const ex = this.getExchange();
     const now = Date.now() / 1000;
     const results: LiveMarket[] = [];
+
+    const marketStatusAbi = [{
+      name: 'status', type: 'function', stateMutability: 'view',
+      inputs: [], outputs: [{ type: 'uint8' }],
+    }];
 
     try {
       const maxId = await this.findMaxMarketId();
@@ -268,32 +272,29 @@ class DreamDexService {
         const raw = await this.readRawMarket(i);
         if (!raw) { consecutiveExpired++; continue; }
 
-        // Already expired
         if (raw.expiry < now) { consecutiveExpired++; continue; }
         consecutiveExpired = 0;
-
-        // Not yet started
         if (raw.tradingStart > now) continue;
 
-        // Check on-chain status === 1 (Trading)
-        let onchain: any;
+        // Read status directly from market contract (no SDK dependency)
+        let status: number;
         try {
-          onchain = await ex.client.getMarketOnchain(raw.hexId as `0x${string}`);
-        } catch {
-          continue;
-        }
-        if (onchain.status !== 1) continue;
+          status = await this.getRpc().readContract({
+            address: raw.market as `0x${string}`,
+            abi: marketStatusAbi as any,
+            functionName: 'status',
+          }) as any as number;
+        } catch { continue; }
 
-        // Gotcha #9: skip if < headroom remaining
+        if (status !== 1) continue; // 1 = Trading
+
         const secondsLeft = raw.expiry - now;
         if (secondsLeft < config.EC_MIN_EXPIRY_HEADROOM_SECONDS) continue;
 
-        // Derive cadence from window duration
         const intervalSec = raw.expiry - raw.tradingStart;
         const cadence = EC_CADENCES.find(c => Math.abs(intervalSec - c) < 60);
         if (!cadence) continue;
 
-        // Use generic asset label — agents work with the book data, not the name
         const asset = 'BTC';
         const label = marketKey(asset, cadence);
 
@@ -306,7 +307,7 @@ class DreamDexService {
           downSymbol: `${raw.hexId}#NO`,
           expiry: raw.expiry,
           secondsLeft,
-          pool: onchain.pool,
+          pool: raw.pool,
           venueId: raw.originVenueId,
         });
 
