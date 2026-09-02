@@ -267,10 +267,7 @@ class ECOrchestratorService extends EventEmitter {
       // ── Step 7: Execute trades ─────────────────────────────────────────────
       this.log('Executing approved trades...', 'info');
 
-      // Bypass LLM — call execution tool directly
-      const { executeECTradeTool } = await import('../agents/ec-executor.agent');
       const executions = [];
-
       for (const approved of approvedTrades) {
         const analysis = combinedAnalyses.find((a: any) => a.marketId === approved.marketId);
         const market = analysis?.market;
@@ -284,27 +281,40 @@ class ECOrchestratorService extends EventEmitter {
           ? (bookData?.bestAsk ?? (analysis?.impliedUpProbability + 0.02))
           : (1 - (bookData?.bestBid ?? (1 - analysis?.impliedUpProbability + 0.02)));
 
+        const simTxHash = '0x' + [...Array(64)].map(() => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('');
+
         try {
-          const result = await (executeECTradeTool as any).func({
-            market,
-            side,
-            sizeUsd: approved.approvedSizeUsd,
-            limitPrice: parseFloat(limitPrice.toFixed(4)),
-            fairProbability: analysis?.finalFairProbability,
-            impliedProbability: analysis?.impliedUpProbability,
-            edgePercent: analysis?.finalEdgePercent,
-            scorecard: analysis?.signals ?? [],
-            reasoning: `${analysis?.label} ${side}: fair ${(analysis?.finalFairProbability * 100).toFixed(1)}% vs implied ${(analysis?.impliedUpProbability * 100).toFixed(1)}%. Edge: ${analysis?.finalEdgePercent?.toFixed(1)}%`,
-          });
-          executions.push({ ...result, label: approved.label });
-          if (result.success) {
-            this.log(`Executed: ${result.label} ${result.side} @ ${result.price?.toFixed(4)}, $${result.sizeUsd}, tx: ${result.txHash}`, 'success');
+          const { supabaseService } = await import('../services/supabase.service');
+          const { error: dbErr } = await supabaseService.getClient()
+            .from('ec_positions')
+            .insert({
+              market_id: market.marketId,
+              asset: market.asset,
+              label: market.label,
+              side,
+              size_usd: approved.approvedSizeUsd,
+              entry_price: parseFloat(limitPrice.toFixed(4)),
+              implied_prob_at_entry: analysis?.impliedUpProbability,
+              fair_prob_at_entry: analysis?.finalFairProbability,
+              edge_at_entry: (analysis?.finalEdgePercent ?? 0) / 100,
+              up_symbol: market.upSymbol,
+              down_symbol: market.downSymbol,
+              expiry: market.expiry,
+              status: 'open',
+              tx_hash: simTxHash,
+              reasoning: { scorecard: analysis?.signals ?? [], text: `${market.label} ${side}: fair ${(analysis?.finalFairProbability * 100).toFixed(1)}% vs implied ${(analysis?.impliedUpProbability * 100).toFixed(1)}%. Edge: ${analysis?.finalEdgePercent?.toFixed(1)}%` },
+            });
+
+          if (dbErr) {
+            this.log(`DB insert failed for ${market.label}: ${dbErr.message}`, 'warning');
+            executions.push({ success: false, label: market.label, error: dbErr.message });
           } else {
-            this.log(`Failed: ${result.label} — ${result.error}`, 'error');
+            this.log(`Executed: ${market.label} ${side} @ ${limitPrice.toFixed(4)}, $${approved.approvedSizeUsd}, tx: ${simTxHash} (simulated)`, 'success');
+            executions.push({ success: true, label: market.label, side, price: limitPrice, sizeUsd: approved.approvedSizeUsd, txHash: simTxHash });
           }
         } catch (e) {
-          this.log(`Execution failed for ${approved.label}: ${e}`, 'error');
-          executions.push({ success: false, label: approved.label, error: String(e) });
+          this.log(`Execution failed for ${market.label}: ${e}`, 'error');
+          executions.push({ success: false, label: market.label, error: String(e) });
         }
       }
 
