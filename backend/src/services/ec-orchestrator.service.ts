@@ -226,32 +226,29 @@ class ECOrchestratorService extends EventEmitter {
 
       this.log(`Found ${edgesFound} markets with edge >= ${config.EC_MIN_EDGE_PERCENT}%`, 'success',
         edgyCandidates.map((a: any) => `${a.label}: ${a.finalRecommendedSide} edge ${a.finalEdgePercent.toFixed(1)}%`));
-
       // ── Step 6: Risk Management ────────────────────────────────────────────
       this.log('Running risk management checks...', 'info');
-      await new Promise(r => setTimeout(r, 5000));
-      let riskResult: any = null;
-      try {
-        const { runner: riskRunner } = await ECRiskAgent.build();
-        const riskPrompt = `Check risk for these proposed trades:\n${JSON.stringify(
-          edgyCandidates.map((a: any) => ({
-            marketId: a.marketId,
+
+      // Bypass LLM — call risk tool directly for each candidate
+      const { checkRiskParametersTool } = await import('../agents/ec-risk.agent');
+      const riskAssessments = [];
+      for (const a of edgyCandidates) {
+        try {
+          const result = await (checkRiskParametersTool as any).func({
             marketLabel: a.label,
             proposedSide: a.finalRecommendedSide,
             edgePercent: a.finalEdgePercent,
             fairProbability: a.finalFairProbability,
             impliedProbability: a.impliedUpProbability,
             secondsLeft: a.market?.secondsLeft ?? 999,
-          })), null, 2)}`;
-        riskResult = await riskRunner.ask(riskPrompt);
-      } catch (e) {
-        this.log(`Risk agent failed: ${e}`, 'warning');
-        // Default: approve all with small size
-        riskResult = { riskAssessments: edgyCandidates.map((a: any) => ({
-          approved: true, approvedSizeUsd: 2, side: a.finalRecommendedSide,
-          label: a.label, reason: 'Risk agent unavailable, defaulting to min size',
-        }))};
+          });
+          riskAssessments.push({ ...result, marketId: a.marketId, side: a.finalRecommendedSide, label: a.label });
+        } catch (e) {
+          this.log(`Risk check failed for ${a.label}: ${e}`, 'warning');
+          riskAssessments.push({ approved: true, approvedSizeUsd: 2, side: a.finalRecommendedSide, label: a.label, marketId: a.marketId, reason: 'Risk tool failed, defaulting to min size' });
+        }
       }
+      const riskResult = { riskAssessments };
 
       const approvedTrades = (riskResult?.riskAssessments ?? []).filter((r: any) => r.approved && r.approvedSizeUsd > 0);
       const rejectedTrades = (riskResult?.riskAssessments ?? []).filter((r: any) => !r.approved);

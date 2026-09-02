@@ -29,8 +29,8 @@ export const checkRiskParametersTool = createTool({
       return { approved: false, approvedSizeUsd: 0, reason: `Edge ${edgePercent.toFixed(1)}% below minimum ${MIN_EDGE}%` };
     }
 
-    // Rule 2: Minimum time — need at least 5 minutes
-    if (secondsLeft < 300) {
+    // Rule 2: Minimum time — need at least 60 seconds
+    if (secondsLeft < 60) {
       return { approved: false, approvedSizeUsd: 0, reason: `Only ${secondsLeft}s remaining — too close to expiry` };
     }
 
