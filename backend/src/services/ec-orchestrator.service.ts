@@ -102,7 +102,7 @@ class ECOrchestratorService extends EventEmitter {
       }
 
       // Small delay to avoid Groq TPM rate limit between sequential LLM calls
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise(r => setTimeout(r, 5000));
 
       this.log('Running edge calculation...', 'info');
       let edgeResult: any = null;
@@ -128,11 +128,19 @@ class ECOrchestratorService extends EventEmitter {
 
       // ── Step 4: Order Book Analysis ────────────────────────────────────────
       this.log('Analyzing order book microstructure...', 'info');
-      await new Promise(r => setTimeout(r, 2000));
-      const { runner: bookRunner } = await ECOrderBookAgent.build();
-      const bookResult: any = await bookRunner.ask(
-        `Analyze order books for these markets:\n${JSON.stringify(scanResult.markets, null, 2)}`
-      );
+      await new Promise(r => setTimeout(r, 5000));
+      let bookResult: any = null;
+      try {
+        const { runner: bookRunner } = await ECOrderBookAgent.build();
+        bookResult = await bookRunner.ask(
+          `Analyze order books for these markets:\n${JSON.stringify(scanResult.markets, null, 2)}`
+        );
+      } catch (e) {
+        this.log(`Order book agent failed: ${e}`, 'warning');
+        bookResult = { bookAnalyses: scanResult.markets.map((m: any) => ({
+          marketId: m.marketId, bidPct: 50, bookAdjustment: 0,
+        }))};
+      }
 
       // ── Step 5: Combine all signals ────────────────────────────────────────
       const combinedAnalyses = (edgeResult?.analyses ?? []).map((analysis: any) => {
@@ -186,19 +194,29 @@ class ECOrchestratorService extends EventEmitter {
 
       // ── Step 6: Risk Management ────────────────────────────────────────────
       this.log('Running risk management checks...', 'info');
-      await new Promise(r => setTimeout(r, 2000));
-      const { runner: riskRunner } = await ECRiskAgent.build();
-      const riskPrompt = `Check risk for these proposed trades:\n${JSON.stringify(
-        edgyCandidates.map((a: any) => ({
-          marketId: a.marketId,
-          marketLabel: a.label,
-          proposedSide: a.finalRecommendedSide,
-          edgePercent: a.finalEdgePercent,
-          fairProbability: a.finalFairProbability,
-          impliedProbability: a.impliedUpProbability,
-          secondsLeft: a.market?.secondsLeft ?? 999,
-        })), null, 2)}`;
-      const riskResult: any = await riskRunner.ask(riskPrompt);
+      await new Promise(r => setTimeout(r, 5000));
+      let riskResult: any = null;
+      try {
+        const { runner: riskRunner } = await ECRiskAgent.build();
+        const riskPrompt = `Check risk for these proposed trades:\n${JSON.stringify(
+          edgyCandidates.map((a: any) => ({
+            marketId: a.marketId,
+            marketLabel: a.label,
+            proposedSide: a.finalRecommendedSide,
+            edgePercent: a.finalEdgePercent,
+            fairProbability: a.finalFairProbability,
+            impliedProbability: a.impliedUpProbability,
+            secondsLeft: a.market?.secondsLeft ?? 999,
+          })), null, 2)}`;
+        riskResult = await riskRunner.ask(riskPrompt);
+      } catch (e) {
+        this.log(`Risk agent failed: ${e}`, 'warning');
+        // Default: approve all with small size
+        riskResult = { riskAssessments: edgyCandidates.map((a: any) => ({
+          approved: true, approvedSizeUsd: 2, side: a.finalRecommendedSide,
+          label: a.label, reason: 'Risk agent unavailable, defaulting to min size',
+        }))};
+      }
 
       const approvedTrades = (riskResult?.riskAssessments ?? []).filter((r: any) => r.approved && r.approvedSizeUsd > 0);
       const rejectedTrades = (riskResult?.riskAssessments ?? []).filter((r: any) => !r.approved);
@@ -220,8 +238,10 @@ class ECOrchestratorService extends EventEmitter {
 
       // ── Step 7: Execute trades ─────────────────────────────────────────────
       this.log('Executing approved trades...', 'info');
-      await new Promise(r => setTimeout(r, 2000));
-      const { runner: execRunner } = await ECExecutorAgent.build();
+      await new Promise(r => setTimeout(r, 5000));
+      let execResult: any = null;
+      try {
+        const { runner: execRunner } = await ECExecutorAgent.build();
 
       const executionPayload = approvedTrades.map((approved: any) => {
         const analysis = combinedAnalyses.find((a: any) => a.marketId === approved.marketId);
@@ -258,6 +278,9 @@ class ECOrchestratorService extends EventEmitter {
           this.log(`Failed: ${e.label} — ${e.error}`, 'error');
         }
       });
+      } catch (e) {
+        this.log(`Executor agent failed: ${e}`, 'warning');
+      }
 
       // ── Finalize ───────────────────────────────────────────────────────────
       const summary = `Scanned ${marketsScanned} markets, found ${edgesFound} edges, executed ${ordersPlaced} trades`;
