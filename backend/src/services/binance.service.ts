@@ -68,7 +68,7 @@ class BinanceService {
           interval: interval,
           limit: limit
         },
-        timeout: 10000
+        timeout: 30000
       });
 
       if (!response.data || !Array.isArray(response.data)) {
@@ -118,7 +118,7 @@ class BinanceService {
           interval: interval,
           limit: limit
         },
-        timeout: 10000
+        timeout: 30000
       });
 
       if (!response.data || !Array.isArray(response.data)) {

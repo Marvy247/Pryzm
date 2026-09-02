@@ -20,7 +20,7 @@ export const computeFairProbabilityTool = createTool({
     intervalSec: number;
     impliedUpProbability: number;
   }) => {
-    const interval = intervalSec === 900 ? '15m' : '1h';
+    const interval = intervalSec <= 300 ? '5m' : intervalSec <= 900 ? '15m' : intervalSec <= 3600 ? '1h' : '4h';
     const ohlcv = await binanceService.getOHLCV(asset, interval, 3);
     const closes = ohlcv.map((c: any) => c.close);
     const volumes = ohlcv.map((c: any) => c.volume);

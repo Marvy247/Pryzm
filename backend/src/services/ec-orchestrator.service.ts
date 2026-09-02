@@ -134,42 +134,48 @@ class ECOrchestratorService extends EventEmitter {
       await new Promise(r => setTimeout(r, 5000));
 
       this.log('Running edge calculation...', 'info');
-      let edgeResult: any = null;
-      try {
-        const { runner: edgeRunner } = await ECEdgeCalculatorAgent.build();
-        const prompt = `Compute fair probability and edge for these markets:\n${JSON.stringify(scanResult.markets.map((m: any) => ({
-          marketId: m.marketId,
-          label: m.label,
-          asset: m.asset,
-          intervalSec: m.intervalSec,
-          impliedUpProbability: m.impliedUpProbability ?? 0.5,
-        })), null, 2)}`;
-        edgeResult = await edgeRunner.ask(prompt) as any;
-      } catch (e) {
-        this.log(`Edge calculator failed: ${e}`, 'warning');
-        edgeResult = { analyses: scanResult.markets.map((m: any) => ({
-          marketId: m.marketId, label: m.label, asset: m.asset, fairUpProbability: 0.5, edgePercent: 0, signals: [],
-        }))};
+
+      // Bypass LLM — call the TA tool directly for each market
+      const { computeFairProbabilityTool } = await import('../agents/ec-edge-calculator.agent');
+      const edgeAnalyses = [];
+      for (const m of scanResult.markets) {
+        try {
+          const result = await (computeFairProbabilityTool as any).fn({
+            asset: m.asset,
+            intervalSec: m.intervalSec,
+            impliedUpProbability: m.impliedUpProbability ?? 0.5,
+          });
+          edgeAnalyses.push({ ...result, marketId: m.marketId, label: m.label });
+        } catch (e) {
+          this.log(`Edge calc failed for ${m.label}: ${e}`, 'warning');
+          edgeAnalyses.push({
+            marketId: m.marketId, label: m.label, asset: m.asset,
+            fairUpProbability: 0.5, edgePercent: 0, signals: [],
+          });
+        }
       }
+      const edgeResult = { analyses: edgeAnalyses };
 
       this.log('Edge calculation complete', 'success',
         edgeResult?.analyses?.map((a: any) => `${a.label}: fair=${(a.fairUpProbability*100).toFixed(1)}%, edge=${a.edgePercent.toFixed(1)}%`));
 
       // ── Step 4: Order Book Analysis ────────────────────────────────────────
       this.log('Analyzing order book microstructure...', 'info');
-      await new Promise(r => setTimeout(r, 5000));
-      let bookResult: any = null;
-      try {
-        const { runner: bookRunner } = await ECOrderBookAgent.build();
-        bookResult = await bookRunner.ask(
-          `Analyze order books for these markets:\n${JSON.stringify(scanResult.markets, null, 2)}`
-        );
-      } catch (e) {
-        this.log(`Order book agent failed: ${e}`, 'warning');
-        bookResult = { bookAnalyses: scanResult.markets.map((m: any) => ({
-          marketId: m.marketId, bidPct: 50, bookAdjustment: 0,
-        }))};
+      await new Promise(r => setTimeout(r, 2000));
+
+      // Bypass LLM — call the order book tool directly
+      const { analyzeOrderBookTool } = await import('../agents/ec-orderbook.agent');
+      const bookAnalyses = [];
+      for (const m of scanResult.markets) {
+        try {
+          const result = await (analyzeOrderBookTool as any).fn(m);
+          bookAnalyses.push(result);
+        } catch (e) {
+          this.log(`Order book analysis failed for ${m.label}: ${e}`, 'warning');
+          bookAnalyses.push({ marketId: m.marketId, bidPct: 50, bookAdjustment: 0 });
+        }
       }
+      const bookResult = { bookAnalyses };
 
       // ── Step 5: Combine all signals ────────────────────────────────────────
       const combinedAnalyses = (edgeResult?.analyses ?? []).map((analysis: any) => {
