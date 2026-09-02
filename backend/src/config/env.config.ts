@@ -28,7 +28,7 @@ const envSchema = z.object({
   EC_MIN_EDGE_PERCENT: z.string().transform(Number).default('10'),
   EC_MAX_POSITION_SIZE_USD: z.string().transform(Number).default('20'),
   EC_MAX_DRAWDOWN_PERCENT: z.string().transform(Number).default('30'),
-  EC_MIN_EXPIRY_HEADROOM_SECONDS: z.string().transform(Number).default('300'),
+  EC_MIN_EXPIRY_HEADROOM_SECONDS: z.string().transform(Number).default('120'),
   EC_RUN_INTERVAL_MINUTES: z.string().transform(Number).default('5'),
 
   // Optional — improves ec-sentiment agent (web search)
