@@ -112,8 +112,9 @@ class DreamDexService {
 
     // Direct RPC client for indexer-free market discovery
     this.rpcClient = createPublicClient({
+      chain: SOMNIA_CHAIN as any,
       transport: http(config.SOMNIA_RPC_URL || 'https://dream-rpc.somnia.network'),
-    });
+    } as any);
 
     this.initialized = true;
     logger.info('[DreamDex] SDK initialized — indexer: ' + config.SOMNIA_INDEXER_URL);
