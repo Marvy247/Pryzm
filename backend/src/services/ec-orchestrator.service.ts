@@ -157,7 +157,7 @@ class ECOrchestratorService extends EventEmitter {
       const edgeResult = { analyses: edgeAnalyses };
 
       this.log('Edge calculation complete', 'success',
-        edgeResult?.analyses?.map((a: any) => `${a.label}: fair=${(a.fairUpProbability*100).toFixed(1)}%, edge=${a.edgePercent.toFixed(1)}%`));
+        edgeResult?.analyses?.map((a: any) => `${a.label}: fair=${((a.fairUpProbability ?? 0.5)*100).toFixed(1)}%, edge=${(a.edgePercent ?? 0).toFixed(1)}%`));
 
       // ── Step 4: Order Book Analysis ────────────────────────────────────────
       this.log('Analyzing order book microstructure...', 'info');

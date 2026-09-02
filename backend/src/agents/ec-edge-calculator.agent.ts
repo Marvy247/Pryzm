@@ -29,9 +29,16 @@ export const computeFairProbabilityTool = createTool({
       return {
         asset, intervalSec, impliedUpProbability,
         fairUpProbability: 0.5,
+        fairDownProbability: 0.5,
         edge: 0,
+        edgePercent: 0,
+        absEdgePercent: 0,
+        recommendedSide: 'UP',
+        hasEdge: false,
         signals: [],
         error: 'Insufficient OHLCV data',
+        currentPrice: closes[closes.length - 1] ?? 0,
+        computedAt: new Date().toISOString(),
       };
     }
 

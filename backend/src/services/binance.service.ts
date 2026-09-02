@@ -40,10 +40,13 @@ class BinanceService {
     }
 
     try {
+      const validDays = [1, 7, 14, 30, 90, 180, 365];
+      const coingeckoDays = validDays.find(d => d >= days) ?? 1;
+
       const response = await axios.get(`${this.baseUrl}/coins/${coinId}/ohlc`, {
         params: {
           vs_currency: 'usd',
-          days: days,
+          days: coingeckoDays,
         },
         timeout: 30000,
       });
