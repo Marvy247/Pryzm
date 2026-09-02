@@ -14,7 +14,7 @@ const envSchema = z.object({
   // Required — LLM
   OPENAI_API_KEY: z.string().min(1),
   OPENAI_BASE_URL: z.string().default('https://gpt1.shupremium.com/v1'),
-  OPENAI_MODEL: z.string().default('gpt-4o'),
+  OPENAI_MODEL: z.string().default('openai/gpt-oss-120b'),
 
   // Somnia Testnet / DreamDEX Event Contracts
   SOMNIA_PRIVATE_KEY: z.string().optional(),
