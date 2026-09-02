@@ -268,6 +268,8 @@ class DreamDexService {
     }];
 
     try {
+      // Reset cached max ID each cycle — markets get new IDs continuously
+      this.maxMarketId = null;
       const maxId = await this.findMaxMarketId();
       let consecutiveExpired = 0;
       const MAX_GAP = 150;
@@ -398,6 +400,7 @@ class DreamDexService {
     sizeUsd: number,
     limitPrice: number,
   ): Promise<PlacedOrder> {
+    await this.ensureMarketsLoaded();
     const ex = this.getExchange();
 
     // Gotcha #1: re-check on-chain status right before sending
@@ -470,6 +473,7 @@ class DreamDexService {
     sizeUsd: number,
     price: number,
   ): Promise<PlacedOrder | null> {
+    await this.ensureMarketsLoaded();
     const ex = this.getExchange();
 
     const onchain = await ex.client.getMarketOnchain(market.marketId as `0x${string}`);
