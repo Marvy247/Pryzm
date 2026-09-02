@@ -91,37 +91,44 @@ class ECOrchestratorService extends EventEmitter {
       this.log(`Found ${marketsScanned} live markets`, 'success',
         scanResult.markets.map((m: any) => `${m.label}: implied UP = ${(m.impliedUpProbability * 100).toFixed(1)}%`));
 
-      // ── Step 2 & 3 in parallel: Sentiment + Edge Calculator ──────────────
-      this.log('Running sentiment analysis and edge calculation in parallel...', 'info');
+      // ── Step 2 & 3: Sentiment + Edge Calculator (sequential to avoid rate limits)
+      this.log('Running sentiment analysis...', 'info');
+      let sentimentResult: any = { btc: { sentimentAdjustment: 0 }, eth: { sentimentAdjustment: 0 } };
+      try {
+        const { runner: sentRunner } = await ECSentimentAgent.build();
+        sentimentResult = await sentRunner.ask('Analyze current BTC and ETH market sentiment for the next 15-60 minutes.');
+      } catch (e) {
+        this.log(`Sentiment agent failed: ${e}`, 'warning');
+      }
 
-      const [sentimentResult, edgeResult] = await Promise.all([
-        (async () => {
-          try {
-            const { runner } = await ECSentimentAgent.build();
-            return await runner.ask('Analyze current BTC and ETH market sentiment for the next 15-60 minutes.');
-          } catch (e) {
-            this.log(`Sentiment agent failed: ${e}`, 'warning');
-            return { btc: { sentimentAdjustment: 0 }, eth: { sentimentAdjustment: 0 } };
-          }
-        })(),
-        (async () => {
-          const { runner } = await ECEdgeCalculatorAgent.build();
-          const prompt = `Compute fair probability and edge for these markets:\n${JSON.stringify(scanResult.markets.map((m: any) => ({
-            marketId: m.marketId,
-            label: m.label,
-            asset: m.asset,
-            intervalSec: m.intervalSec,
-            impliedUpProbability: m.impliedUpProbability ?? 0.5,
-          })), null, 2)}`;
-          return await runner.ask(prompt) as any;
-        })(),
-      ]);
+      // Small delay to avoid Groq TPM rate limit between sequential LLM calls
+      await new Promise(r => setTimeout(r, 2000));
+
+      this.log('Running edge calculation...', 'info');
+      let edgeResult: any = null;
+      try {
+        const { runner: edgeRunner } = await ECEdgeCalculatorAgent.build();
+        const prompt = `Compute fair probability and edge for these markets:\n${JSON.stringify(scanResult.markets.map((m: any) => ({
+          marketId: m.marketId,
+          label: m.label,
+          asset: m.asset,
+          intervalSec: m.intervalSec,
+          impliedUpProbability: m.impliedUpProbability ?? 0.5,
+        })), null, 2)}`;
+        edgeResult = await edgeRunner.ask(prompt) as any;
+      } catch (e) {
+        this.log(`Edge calculator failed: ${e}`, 'warning');
+        edgeResult = { analyses: scanResult.markets.map((m: any) => ({
+          marketId: m.marketId, label: m.label, asset: m.asset, fairUpProbability: 0.5, edgePercent: 0, signals: [],
+        }))};
+      }
 
       this.log('Edge calculation complete', 'success',
         edgeResult?.analyses?.map((a: any) => `${a.label}: fair=${(a.fairUpProbability*100).toFixed(1)}%, edge=${a.edgePercent.toFixed(1)}%`));
 
       // ── Step 4: Order Book Analysis ────────────────────────────────────────
       this.log('Analyzing order book microstructure...', 'info');
+      await new Promise(r => setTimeout(r, 2000));
       const { runner: bookRunner } = await ECOrderBookAgent.build();
       const bookResult: any = await bookRunner.ask(
         `Analyze order books for these markets:\n${JSON.stringify(scanResult.markets, null, 2)}`
@@ -179,6 +186,7 @@ class ECOrchestratorService extends EventEmitter {
 
       // ── Step 6: Risk Management ────────────────────────────────────────────
       this.log('Running risk management checks...', 'info');
+      await new Promise(r => setTimeout(r, 2000));
       const { runner: riskRunner } = await ECRiskAgent.build();
       const riskPrompt = `Check risk for these proposed trades:\n${JSON.stringify(
         edgyCandidates.map((a: any) => ({
@@ -212,6 +220,7 @@ class ECOrchestratorService extends EventEmitter {
 
       // ── Step 7: Execute trades ─────────────────────────────────────────────
       this.log('Executing approved trades...', 'info');
+      await new Promise(r => setTimeout(r, 2000));
       const { runner: execRunner } = await ECExecutorAgent.build();
 
       const executionPayload = approvedTrades.map((approved: any) => {
