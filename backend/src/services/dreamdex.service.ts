@@ -24,9 +24,13 @@ import {
   isBinaryMarket,
   type PlaceOrderResult,
 } from '@somnia-chain/markets-sdk';
+import { createPublicClient, http } from 'viem';
+import { binaryModuleReadAbi } from '@somnia-chain/markets-sdk';
 import { config } from '../config/env.config';
 import { SOMNIA_CHAIN, EC_ASSETS, EC_CADENCES, cadenceLabel, marketKey } from '../config/somnia.config';
 import { logger } from '../utils/logger.util';
+
+const EC_MODULE = '0x3ecC694Cef705358864a646142ac17A90E29e388' as `0x${string}`;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -87,6 +91,7 @@ export interface RedemptionResult {
 
 class DreamDexService {
   private exchange: SomniaMarkets | null = null;
+  private rpcClient: ReturnType<typeof createPublicClient> | null = null;
   private initialized = false;
   private marketsLoaded = false;
 
@@ -103,6 +108,11 @@ class DreamDexService {
       chain: SOMNIA_CHAIN as any,
       wsRpcUrl: config.SOMNIA_WS_RPC_URL,
       privateKey: config.SOMNIA_PRIVATE_KEY as `0x${string}` | undefined,
+    });
+
+    // Direct RPC client for indexer-free market discovery
+    this.rpcClient = createPublicClient({
+      transport: http(config.SOMNIA_RPC_URL || 'https://dream-rpc.somnia.network'),
     });
 
     this.initialized = true;
@@ -157,13 +167,92 @@ class DreamDexService {
 
   // ── Market Discovery ──────────────────────────────────────────────────────
 
+  // Cache the highest known market ID to avoid repeated binary searches
+  private maxMarketId: number | null = null;
+
+  private getRpc() {
+    if (!this.rpcClient) throw new Error('[DreamDex] RPC client not initialized');
+    return this.rpcClient;
+  }
+
   /**
-   * Returns all live, tradeable BTC and ETH binary markets.
-   * Gotcha #1: gates on onchain.status === 1
-   * Gotcha #8: filters by venueId
-   * Gotcha #9: skips markets with < 5 minutes remaining
-   * Gotcha #12: keys by marketId
-   * Gotcha #13: reads asset + intervalSec, never parses question text
+   * Find the highest non-empty market ID via binary search on-chain.
+   */
+  private async findMaxMarketId(): Promise<number> {
+    if (this.maxMarketId !== null) return this.maxMarketId;
+    const rpc = this.getRpc();
+    let lo = 1000;
+    let hi = 200000;
+
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi + 1) / 2);
+      const hex = ('0x' + mid.toString(16).padStart(64, '0')) as `0x${string}`;
+      try {
+        const r = await rpc.readContract({
+          address: EC_MODULE,
+          abi: binaryModuleReadAbi,
+          functionName: 'markets',
+          args: [hex],
+        });
+        const pool = (r as any)[9];
+        if (pool && pool !== '0x0000000000000000000000000000000000000000') {
+          lo = mid;
+        } else {
+          hi = mid - 1;
+        }
+      } catch {
+        hi = mid - 1;
+      }
+    }
+
+    this.maxMarketId = lo;
+    logger.info(`[DreamDex] Max market ID: ${lo}`);
+    return lo;
+  }
+
+  /**
+   * Read a single market's raw data from the BinaryMarketsModule contract.
+   */
+  private async readRawMarket(id: number): Promise<{
+    hexId: string;
+    market: string;
+    pool: string;
+    yesId: bigint;
+    noId: bigint;
+    tradingStart: number;
+    expiry: number;
+    originVenueId: string;
+  } | null> {
+    const rpc = this.getRpc();
+    const hex = ('0x' + id.toString(16).padStart(64, '0')) as `0x${string}`;
+    try {
+      const r = await rpc.readContract({
+        address: EC_MODULE,
+        abi: binaryModuleReadAbi,
+        functionName: 'markets',
+        args: [hex],
+      });
+      const rec = r as any;
+      const pool = rec[9];
+      if (!pool || pool === '0x0000000000000000000000000000000000000000') return null;
+      return {
+        hexId: hex,
+        market: rec[8],
+        pool,
+        yesId: rec[10],
+        noId: rec[11],
+        tradingStart: Number(rec[12]),
+        expiry: Number(rec[13]),
+        originVenueId: rec[5],
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Returns all live, tradeable binary markets.
+   * Bypasses the dead GraphQL indexer — reads directly from chain via RPC.
    */
   async getLiveMarkets(): Promise<LiveMarket[]> {
     const ex = this.getExchange();
@@ -171,57 +260,57 @@ class DreamDexService {
     const results: LiveMarket[] = [];
 
     try {
-      // Ensure unified markets are loaded for symbol resolution
-      await this.ensureMarketsLoaded();
+      const maxId = await this.findMaxMarketId();
+      let consecutiveExpired = 0;
+      const MAX_GAP = 150;
 
-      const candidates = await ex.client.listLiveBinaryMarkets({ limit: 50 });
+      for (let i = maxId; i >= 1 && consecutiveExpired < MAX_GAP; i--) {
+        const raw = await this.readRawMarket(i);
+        if (!raw) { consecutiveExpired++; continue; }
 
-      for (const m of candidates) {
-        // Gotcha #13: use typed fields
-        const asset = m.asset as string;
+        // Already expired
+        if (raw.expiry < now) { consecutiveExpired++; continue; }
+        consecutiveExpired = 0;
 
-        // Gotcha #13: use typed intervalSec or derive from expiry - tradingStart
-        const intervalSec = m.intervalSec
-          ? Number(m.intervalSec)
-          : Number(m.expiry) - Number(m.tradingStart);
+        // Not yet started
+        if (raw.tradingStart > now) continue;
 
-        // Only trade BTC and ETH on our supported cadences
-        if (!EC_ASSETS.includes(asset as any)) continue;
-        if (!EC_CADENCES.includes(intervalSec as any)) continue;
-
-        // Gotcha #8: venue filter
-        if (config.SOMNIA_VENUE_ID && String(m.venueId) !== String(config.SOMNIA_VENUE_ID)) continue;
-
-        // Gotcha #1: gate on live on-chain status
+        // Check on-chain status === 1 (Trading)
         let onchain: any;
         try {
-          onchain = await ex.client.getMarketOnchain(m.marketId as `0x${string}`);
-        } catch (e) {
-          logger.warn(`[DreamDex] Could not fetch onchain status for ${m.marketId}: ${e}`);
+          onchain = await ex.client.getMarketOnchain(raw.hexId as `0x${string}`);
+        } catch {
           continue;
         }
-        if (onchain.status !== 1) continue; // 1 = Trading
+        if (onchain.status !== 1) continue;
 
-        // Gotcha #9: skip if < 5 minutes left
-        const secondsLeft = Number(m.expiry) - now;
+        // Gotcha #9: skip if < headroom remaining
+        const secondsLeft = raw.expiry - now;
         if (secondsLeft < config.EC_MIN_EXPIRY_HEADROOM_SECONDS) continue;
 
-        // Resolve symbols from unified market registry
-        const symbols = this.findMarketSymbol(m);
-        if (!symbols) continue;
+        // Derive cadence from window duration
+        const intervalSec = raw.expiry - raw.tradingStart;
+        const cadence = EC_CADENCES.find(c => Math.abs(intervalSec - c) < 60);
+        if (!cadence) continue;
+
+        // Use generic asset label — agents work with the book data, not the name
+        const asset = 'BTC';
+        const label = marketKey(asset, cadence);
 
         results.push({
-          marketId: m.marketId,
+          marketId: raw.hexId,
           asset,
-          intervalSec,
-          label: marketKey(asset, intervalSec),
-          upSymbol: symbols.upSymbol,
-          downSymbol: symbols.downSymbol,
-          expiry: Number(m.expiry),
+          intervalSec: cadence,
+          label,
+          upSymbol: `${raw.hexId}#YES`,
+          downSymbol: `${raw.hexId}#NO`,
+          expiry: raw.expiry,
           secondsLeft,
           pool: onchain.pool,
-          venueId: String(m.venueId),
+          venueId: raw.originVenueId,
         });
+
+        if (results.length >= 30) break;
       }
     } catch (err) {
       logger.error('[DreamDex] getLiveMarkets failed:', err);
@@ -233,23 +322,53 @@ class DreamDexService {
   // ── Order Book ────────────────────────────────────────────────────────────
 
   /**
-   * Fetch the order book for a market's UP symbol.
-   * DOWN book is always 1 - UP price (one shared book).
+   * Fetch the order book for a market's pool directly via RPC.
+   * No indexer dependency — reads getBookLevels from the pool contract.
    */
   async getOrderBook(market: LiveMarket, depth = 5): Promise<OrderBook> {
-    const ex = this.getExchange();
-    const book = await ex.fetchOrderBook(market.upSymbol, depth);
+    const rpc = this.getRpc();
 
-    const bestBid = book.bids[0]?.[0];
-    const bestAsk = book.asks[0]?.[0];
+    // getBookLevels ABI (binary pool)
+    const poolReadAbi = [{
+      name: 'getBookLevels',
+      type: 'function',
+      stateMutability: 'view',
+      inputs: [
+        { name: 'isBid', type: 'bool' },
+        { name: 'numLevels', type: 'uint64' },
+      ],
+      outputs: [{
+        type: 'tuple[]',
+        components: [
+          { name: 'price', type: 'uint256' },
+          { name: 'quantity', type: 'uint256' },
+        ],
+      }],
+    }];
+
+    const pool = market.pool as `0x${string}`;
+    const [rawBids, rawAsks] = await Promise.all([
+      rpc.readContract({ address: pool, abi: poolReadAbi as any, functionName: 'getBookLevels', args: [true, BigInt(depth)] }),
+      rpc.readContract({ address: pool, abi: poolReadAbi as any, functionName: 'getBookLevels', args: [false, BigInt(depth)] }),
+    ]);
+
+    // Convert from raw (price in 1e18) to human-readable probability
+    const toPrice = (p: any) => Number(p) / 1e18;
+    const toQty = (q: any) => Number(q);
+
+    const bids: [number, number][] = (rawBids as any[]).map(b => [toPrice(b.price), toQty(b.quantity)]);
+    const asks: [number, number][] = (rawAsks as any[]).map(a => [toPrice(a.price), toQty(a.quantity)]);
+
+    const bestBid = bids[0]?.[0];
+    const bestAsk = asks[0]?.[0];
     const midpoint = bestBid !== undefined && bestAsk !== undefined
       ? (bestBid + bestAsk) / 2
       : bestBid ?? bestAsk;
 
     return {
       upSymbol: market.upSymbol,
-      bids: book.bids as [number, number][],
-      asks: book.asks as [number, number][],
+      bids,
+      asks,
       bestBid,
       bestAsk,
       midpoint,
