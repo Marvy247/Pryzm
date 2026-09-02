@@ -30,7 +30,9 @@ import { config } from '../config/env.config';
 import { SOMNIA_CHAIN, EC_ASSETS, EC_CADENCES, cadenceLabel, marketKey } from '../config/somnia.config';
 import { logger } from '../utils/logger.util';
 
-const EC_MODULE = '0x3ecC694Cef705358864a646142ac17A90E29e388' as `0x${string}`;
+import { SOMNIA_TESTNET_ADDRESSES } from '@somnia-chain/markets-sdk';
+
+const EC_MODULE = SOMNIA_TESTNET_ADDRESSES.binaryModule as `0x${string}`;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -108,10 +110,7 @@ class DreamDexService {
       chain: SOMNIA_CHAIN as any,
       wsRpcUrl: config.SOMNIA_WS_RPC_URL,
       privateKey: config.SOMNIA_PRIVATE_KEY as `0x${string}` | undefined,
-      addresses: {
-        binaryModule: EC_MODULE,
-        binarySettlement: '0xbF4a49e0Dfd092e5FBE8E5761064C49533e6Ed23',
-      },
+      addresses: SOMNIA_TESTNET_ADDRESSES,
     } as any);
 
     // Direct RPC client for indexer-free market discovery
