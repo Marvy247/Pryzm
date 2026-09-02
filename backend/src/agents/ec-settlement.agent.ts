@@ -87,14 +87,4 @@ export const ECSettlementAgent = AgentBuilder.create('ec_settlement')
     This agent runs every 5 minutes in the background. It is critical because
     unclaimed winnings are lost forever if the agent doesn't actively redeem them.
   `)
-  .withTools(redeemSettledMarketsTool)
-  .withOutputSchema(z.object({
-    redemptions: z.array(z.object({
-      marketId: z.string(),
-      asset: z.string(),
-      outcome: z.string(),
-      txHash: z.string(),
-    })),
-    expiredCount: z.number(),
-    message: z.string().optional(),
-  }) as any);
+  .withTools(redeemSettledMarketsTool);

@@ -100,15 +100,4 @@ export const ECRiskAgent = AgentBuilder.create('ec_risk')
 
     Return all trades (approved and rejected) so the orchestrator can log everything.
   `)
-  .withTools(checkRiskParametersTool)
-  .withOutputSchema(z.object({
-    riskAssessments: z.array(z.object({
-      marketId: z.string(),
-      label: z.string(),
-      side: z.enum(['UP', 'DOWN']),
-      approved: z.boolean(),
-      approvedSizeUsd: z.number(),
-      reason: z.string(),
-      kellyFraction: z.number().optional(),
-    })),
-  }) as any);
+  .withTools(checkRiskParametersTool);

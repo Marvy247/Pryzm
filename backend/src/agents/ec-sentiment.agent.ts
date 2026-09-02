@@ -1,6 +1,5 @@
 import { AgentBuilder } from '@iqai/adk';
 import { scannerLlm } from '../config/llm.config';
-const z = require('@iqai/adk/node_modules/zod');
 import dedent from 'dedent';
 import { searchTavilyTool } from './ec-tools';
 
@@ -32,18 +31,4 @@ export const ECSentimentAgent = AgentBuilder.create('ec_sentiment')
     does NOT mean the next 15 minutes will be up. Focus on immediate catalysts.
   `)
   .withTools(searchTavilyTool)
-  .withOutputSchema(z.object({
-    btc: z.object({
-      sentimentScore: z.number().min(-1).max(1),
-      sentimentAdjustment: z.number().min(-0.05).max(0.05),
-      keyHeadlines: z.array(z.string()),
-      catalysts: z.array(z.string()),
-    }),
-    eth: z.object({
-      sentimentScore: z.number().min(-1).max(1),
-      sentimentAdjustment: z.number().min(-0.05).max(0.05),
-      keyHeadlines: z.array(z.string()),
-      catalysts: z.array(z.string()),
-    }),
-    searchedAt: z.string(),
-  }) as any);
+

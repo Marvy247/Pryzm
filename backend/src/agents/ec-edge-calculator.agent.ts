@@ -157,26 +157,4 @@ export const ECEdgeCalculatorAgent = AgentBuilder.create('ec_edge_calculator')
 
     Return structured JSON. Be precise with numbers — these drive real trades.
   `)
-  .withTools(computeFairProbabilityTool)
-  .withOutputSchema(z.object({
-    analyses: z.array(z.object({
-      marketId: z.string(),
-      label: z.string(),
-      asset: z.string(),
-      intervalSec: z.number(),
-      impliedUpProbability: z.number(),
-      fairUpProbability: z.number(),
-      edge: z.number(),
-      edgePercent: z.number(),
-      absEdgePercent: z.number(),
-      recommendedSide: z.enum(['UP', 'DOWN']),
-      hasEdge: z.boolean(),
-      signals: z.array(z.object({
-        name: z.string(),
-        value: z.string(),
-        contribution: z.number(),
-        direction: z.enum(['bullish', 'bearish', 'neutral']),
-      })),
-      currentPrice: z.number().optional(),
-    })),
-  }) as any);
+  .withTools(computeFairProbabilityTool);

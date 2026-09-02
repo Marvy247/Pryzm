@@ -116,18 +116,4 @@ export const ECExecutorAgent = AgentBuilder.create('ec_executor')
 
     Return a summary of all execution attempts.
   `)
-  .withTools(executeECTradeTool)
-  .withOutputSchema(z.object({
-    executions: z.array(z.object({
-      success: z.boolean(),
-      marketId: z.string(),
-      label: z.string(),
-      side: z.enum(['UP', 'DOWN']).optional(),
-      price: z.number().optional(),
-      sizeUsd: z.number().optional(),
-      txHash: z.string().optional(),
-      error: z.string().optional(),
-    })),
-    totalExecuted: z.number(),
-    totalFailed: z.number(),
-  }) as any);
+  .withTools(executeECTradeTool);

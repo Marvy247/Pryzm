@@ -55,26 +55,4 @@ export const ECMarketScannerAgent = AgentBuilder.create('ec_market_scanner')
     Return a structured JSON object with all markets and your assessment.
     If no markets are found (empty array), return { markets: [], reason: "No live markets available" }.
   `)
-  .withTools(listLiveMarketsTool)
-  .withOutputSchema(z.object({
-    markets: z.array(z.object({
-      marketId: z.string(),
-      label: z.string(),
-      asset: z.string(),
-      intervalSec: z.number(),
-      upSymbol: z.string(),
-      downSymbol: z.string(),
-      secondsLeft: z.number(),
-      expiry: z.number(),
-      pool: z.string(),
-      venueId: z.string(),
-      impliedUpProbability: z.number().nullable(),
-      impliedDownProbability: z.number().nullable(),
-      bestBid: z.number().nullable(),
-      bestAsk: z.number().nullable(),
-      has_liquidity: z.boolean(),
-      time_critical: z.boolean(),
-    })),
-    scannedAt: z.string(),
-    reason: z.string().optional(),
-  }) as any);
+  .withTools(listLiveMarketsTool);

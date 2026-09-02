@@ -73,19 +73,4 @@ export const ECOrderBookAgent = AgentBuilder.create('ec_orderbook')
 
     Return all results. Do not filter out markets — the orchestrator decides.
   `)
-  .withTools(analyzeOrderBookTool)
-  .withOutputSchema(z.object({
-    bookAnalyses: z.array(z.object({
-      marketId: z.string(),
-      label: z.string(),
-      bestBid: z.number().nullable(),
-      bestAsk: z.number().nullable(),
-      spread: z.number(),
-      spreadPct: z.number(),
-      bidPct: z.number(),
-      askPct: z.number(),
-      bookAdjustment: z.number(),
-      bookPressure: z.enum(['BUY', 'SELL', 'NEUTRAL']),
-      hasLiquidity: z.boolean(),
-    })),
-  }) as any);
+  .withTools(analyzeOrderBookTool);
