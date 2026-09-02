@@ -14,7 +14,6 @@
 // Settlement runs separately every 5 minutes via startSettlementTimer().
 
 import { EventEmitter } from 'events';
-import { ECMarketScannerAgent } from '../agents/ec-market-scanner.agent';
 import { ECEdgeCalculatorAgent } from '../agents/ec-edge-calculator.agent';
 import { ECSentimentAgent } from '../agents/ec-sentiment.agent';
 import { ECOrderBookAgent } from '../agents/ec-orderbook.agent';
@@ -76,10 +75,40 @@ class ECOrchestratorService extends EventEmitter {
     try {
       // ── Step 1: Scan live markets ──────────────────────────────────────────
       this.log('Scanning live DreamDEX Event Contract markets...', 'info');
-      const { runner: scannerRunner } = await ECMarketScannerAgent.build();
-      const scanResult: any = await scannerRunner.ask('Scan all live BTC and ETH Event Contract markets on DreamDEX.');
 
-      if (!scanResult?.markets?.length) {
+      // Bypass the LLM scanner agent — call the RPC scanner directly
+      const liveMarkets = await dreamDexService.getLiveMarkets();
+      const enrichedMarkets = [];
+      for (const m of liveMarkets) {
+        try {
+          const book = await dreamDexService.getOrderBook(m, 3);
+          enrichedMarkets.push({
+            marketId: m.marketId,
+            label: m.label,
+            asset: m.asset,
+            intervalSec: m.intervalSec,
+            upSymbol: m.upSymbol,
+            downSymbol: m.downSymbol,
+            secondsLeft: Math.round(m.secondsLeft),
+            expiry: m.expiry,
+            pool: m.pool,
+            venueId: m.venueId,
+            impliedUpProbability: book.impliedUpProbability,
+            impliedDownProbability: book.impliedUpProbability !== undefined ? 1 - book.impliedUpProbability : undefined,
+            bestBid: book.bestBid,
+            bestAsk: book.bestAsk,
+            bookDepth: { bids: book.bids.length, asks: book.asks.length },
+            has_liquidity: book.bids.length > 0 && book.asks.length > 0,
+            time_critical: m.secondsLeft < 600,
+          });
+        } catch (e) {
+          this.log(`Failed to read book for ${m.label}: ${e}`, 'warning');
+        }
+      }
+
+      const scanResult = { markets: enrichedMarkets, scannedAt: new Date().toISOString() };
+
+      if (!scanResult.markets.length) {
         this.log('No live markets found. Ending cycle.', 'warning');
         await this.finalizeRun(runId, 'completed', 0, 0, 0, this.runLogs);
         this.isRunning = false;
