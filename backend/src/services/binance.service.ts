@@ -49,6 +49,7 @@ class BinanceService {
           days: coingeckoDays,
         },
         timeout: 30000,
+        headers: { 'User-Agent': 'Pryzm/1.0' },
       });
 
       if (!response.data || !Array.isArray(response.data)) {
@@ -80,6 +81,7 @@ class BinanceService {
       const response = await axios.get(`${this.baseUrl}/simple/price`, {
         params: { ids: coinId, vs_currencies: 'usd' },
         timeout: 10000,
+        headers: { 'User-Agent': 'Pryzm/1.0' },
       });
       return response.data?.[coinId]?.usd ?? null;
     } catch {
