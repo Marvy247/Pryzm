@@ -24,6 +24,9 @@ interface ProbabilityScorecardProps {
   onClose: () => void
   marketId: string
   marketTitle?: string
+  scorecard?: any
+  entryPrice?: number
+  side?: string
 }
 
 export function ProbabilityScorecard({
@@ -31,6 +34,9 @@ export function ProbabilityScorecard({
   onClose,
   marketId,
   marketTitle,
+  scorecard: precomputedScorecard,
+  entryPrice,
+  side,
 }: ProbabilityScorecardProps) {
   const [analysis, setAnalysis] = useState<Analysis | null>(null)
   const [loading, setLoading] = useState(false)
@@ -108,13 +114,46 @@ export function ProbabilityScorecard({
   }
 
   useEffect(() => {
-    if (isOpen && marketId) {
-      fetchAnalysis()
-    } else {
+    if (!isOpen) {
       setAnalysis(null)
       setError(null)
+      return
     }
-  }, [isOpen, marketId])
+    if (precomputedScorecard?.signals) {
+      const sc = precomputedScorecard
+      const rawSignals = sc.signals || {}
+      const signalList: string[] = []
+      const riskFactors: string[] = []
+
+      if (rawSignals.rsi != null) signalList.push(`RSI: ${rawSignals.rsi > 0 ? '+' : ''}${(rawSignals.rsi * 100).toFixed(1)}%`)
+      if (rawSignals.macd != null) signalList.push(`MACD: ${rawSignals.macd > 0 ? '+' : ''}${(rawSignals.macd * 100).toFixed(1)}%`)
+      if (rawSignals.emaTrend != null) signalList.push(`EMA Trend: ${rawSignals.emaTrend > 0 ? '+' : ''}${(rawSignals.emaTrend * 100).toFixed(1)}%`)
+      if (rawSignals.bollingerPosition != null) signalList.push(`Bollinger: ${rawSignals.bollingerPosition > 0 ? '+' : ''}${(rawSignals.bollingerPosition * 100).toFixed(1)}%`)
+      if (rawSignals.volumeMomentum != null) signalList.push(`Volume: ${rawSignals.volumeMomentum > 0 ? '+' : ''}${(rawSignals.volumeMomentum * 100).toFixed(1)}%`)
+      if (rawSignals.priceMomentum != null) signalList.push(`Price Momentum: ${rawSignals.priceMomentum > 0 ? '+' : ''}${(rawSignals.priceMomentum * 100).toFixed(1)}%`)
+      if (rawSignals.sentiment != null) signalList.push(`Sentiment: ${rawSignals.sentiment > 0 ? '+' : ''}${(rawSignals.sentiment * 100).toFixed(1)}%`)
+      if (rawSignals.orderBook != null) signalList.push(`Order Book: ${rawSignals.orderBook > 0 ? '+' : ''}${(rawSignals.orderBook * 100).toFixed(1)}%`)
+
+      const totalScore = Object.values(rawSignals).reduce((sum, v) => sum + (typeof v === 'number' ? v : 0), 0)
+      const edge = totalScore
+      const absEdge = Math.abs(edge)
+
+      if (absEdge < 0.02) riskFactors.push('Edge within noise range')
+      if (sc.orderBookSpread != null && sc.orderBookSpread > 0.05) riskFactors.push(`Wide spread: ${(sc.orderBookSpread * 100).toFixed(1)}¢`)
+
+      setAnalysis({
+        agentProbability: sc.agentProbability ?? 0.5,
+        currentPrice: sc.currentPrice ?? 0.5,
+        edge,
+        confidence: absEdge > 0.1 ? 'high' : absEdge > 0.05 ? 'medium' : 'low',
+        signals: signalList.length ? signalList : ['Insufficient data'],
+        riskFactors: riskFactors.length ? riskFactors : ['No significant risk factors'],
+        recommendation: edge > 0.05 ? 'BUY' : edge < -0.05 ? 'SELL' : 'HOLD',
+      })
+    } else if (marketId) {
+      fetchAnalysis()
+    }
+  }, [isOpen, marketId, precomputedScorecard])
 
   if (!isOpen) return null
 

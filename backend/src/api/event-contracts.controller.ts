@@ -91,6 +91,8 @@ router.get('/positions', async (_req: Request, res: Response) => {
       status: row.status,
       createdAt: row.created_at,
       settledAt: row.settled_at,
+      label: row.label,
+      reasoning: row.reasoning,
     }));
 
     res.json({ positions });
@@ -128,6 +130,8 @@ router.get('/history', async (req: Request, res: Response) => {
         status: row.status,
         createdAt: row.created_at,
         settledAt: row.settled_at,
+        label: row.label,
+        reasoning: row.reasoning,
       })),
       stats: { totalPnl, won, lost, winRate, total: data?.length ?? 0 },
     });

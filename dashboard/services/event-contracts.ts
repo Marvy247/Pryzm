@@ -29,6 +29,8 @@ export interface Position {
   status: string
   createdAt: string
   settledAt?: string
+  label?: string
+  reasoning?: any
 }
 
 export interface RunLog {

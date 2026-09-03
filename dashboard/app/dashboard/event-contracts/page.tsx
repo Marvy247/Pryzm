@@ -10,7 +10,7 @@ import { ProbabilityScorecard } from '@/components/ProbabilityScorecard'
 import { TrackRecord } from '@/components/TrackRecord'
 import { Skeleton } from '@/components/ui/skeleton'
 import { eventContractsService, Market, Position, RunLog, TrackRecordStats } from '@/services/event-contracts'
-import { Activity, Play, RefreshCw, Terminal, TrendingUp, BarChart3, AlertCircle, Wifi, WifiOff, Search, X } from 'lucide-react'
+import { Activity, Play, RefreshCw, Terminal, TrendingUp, BarChart3, AlertCircle, Wifi, WifiOff, Search, X, Brain } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function EventContractsPage() {
@@ -24,6 +24,7 @@ export default function EventContractsPage() {
   const [selectedMarket, setSelectedMarket] = useState<string | null>(null)
   const [selectedMarketTitle, setSelectedMarketTitle] = useState<string>('')
   const [activeTab, setActiveTab] = useState('markets')
+  const [selectedPositionScorecard, setSelectedPositionScorecard] = useState<Position | null>(null)
 
   const [logFilter, setLogFilter] = useState<string>('all')
   const [logSearch, setLogSearch] = useState('')
@@ -89,7 +90,13 @@ export default function EventContractsPage() {
     fetchLogs()
     connectSSE()
 
+    const interval = setInterval(() => {
+      fetchData()
+      fetchHistory()
+    }, 15000)
+
     return () => {
+      clearInterval(interval)
       eventSourceRef.current?.close()
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current)
     }
@@ -297,11 +304,22 @@ export default function EventContractsPage() {
                           {pos.side.toUpperCase()}
                         </Badge>
                         <div>
-                          <p className="font-medium text-slate-900">{pos.marketId}</p>
+                          <p className="font-medium text-slate-900">{pos.label || pos.marketId}</p>
                           <p className="text-sm text-slate-500">
                             Entry: {((pos.entryPrice ?? 0.5) * 100).toFixed(0)}¢ | Current: {((pos.currentPrice ?? pos.entryPrice ?? 0.5) * 100).toFixed(0)}¢
                           </p>
                         </div>
+                        {pos.reasoning?.signals && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs text-sky-600 hover:text-sky-700 h-7 px-2"
+                            onClick={() => setSelectedPositionScorecard(pos)}
+                          >
+                            <Brain className="w-3 h-3 mr-1" />
+                            Why?
+                          </Button>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className={`font-semibold ${(pos.pnlUsd ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
@@ -320,6 +338,7 @@ export default function EventContractsPage() {
         <TabsContent value="track-record" className="mt-6">
           <TrackRecord
             stats={stats ?? { totalPnl: 0, won: 0, lost: 0, winRate: null, total: 0 }}
+            recentPositions={history}
           />
         </TabsContent>
 
@@ -405,6 +424,16 @@ export default function EventContractsPage() {
         onClose={() => { setSelectedMarket(null); setSelectedMarketTitle('') }}
         marketId={selectedMarket ?? ''}
         marketTitle={selectedMarketTitle}
+      />
+
+      <ProbabilityScorecard
+        isOpen={selectedPositionScorecard !== null}
+        onClose={() => setSelectedPositionScorecard(null)}
+        marketId={selectedPositionScorecard?.marketId ?? ''}
+        marketTitle={selectedPositionScorecard?.label || selectedPositionScorecard?.marketId}
+        scorecard={selectedPositionScorecard?.reasoning}
+        entryPrice={selectedPositionScorecard?.entryPrice}
+        side={selectedPositionScorecard?.side}
       />
     </div>
   )

@@ -6,29 +6,42 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { eventContractsService, Position, RunLog, WalletBalance } from '@/services/event-contracts'
-import { Wallet, Activity, TrendingUp, TrendingDown, Play, Clock, Zap, AlertCircle } from 'lucide-react'
+import { Wallet, Activity, TrendingUp, TrendingDown, Play, Clock, Zap, AlertCircle, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
+
+interface CycleRun {
+  id: string
+  started_at: string
+  completed_at: string | null
+  status: string
+  markets_scanned: number
+  edges_found: number
+  orders_placed: number
+}
 
 export function DashboardOverview() {
   const [balance, setBalance] = useState<WalletBalance | null>(null)
   const [positions, setPositions] = useState<Position[]>([])
   const [status, setStatus] = useState<{ isRunning: boolean; lastRunAt: string | null; cycleCount: number } | null>(null)
   const [recentLogs, setRecentLogs] = useState<RunLog[]>([])
+  const [runs, setRuns] = useState<CycleRun[]>([])
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
       try {
-        const [bal, pos, stat, logs] = await Promise.allSettled([
+        const [bal, pos, stat, logs, runData] = await Promise.allSettled([
           eventContractsService.getWalletBalance(),
           eventContractsService.getPositions(),
           eventContractsService.getStatus(),
           eventContractsService.getLogs(),
+          eventContractsService.getRuns(),
         ])
         if (bal.status === 'fulfilled') setBalance(bal.value)
         if (pos.status === 'fulfilled') setPositions(pos.value)
         if (stat.status === 'fulfilled') setStatus(stat.value)
         if (logs.status === 'fulfilled') setRecentLogs(logs.value.slice(-5).reverse())
+        if (runData.status === 'fulfilled') setRuns(runData.value.slice(0, 10))
       } catch {
         setError('Could not connect to backend')
       }
@@ -212,6 +225,55 @@ export function DashboardOverview() {
                   </span>
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {runs.length > 0 && (
+        <Card className="card-surface">
+          <CardContent className="p-6">
+            <h3 className="font-semibold text-slate-900 mb-4">Cycle History</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    <th className="text-left py-2 px-3 text-xs font-medium text-slate-500">Time</th>
+                    <th className="text-left py-2 px-3 text-xs font-medium text-slate-500">Markets</th>
+                    <th className="text-left py-2 px-3 text-xs font-medium text-slate-500">Edges</th>
+                    <th className="text-left py-2 px-3 text-xs font-medium text-slate-500">Orders</th>
+                    <th className="text-left py-2 px-3 text-xs font-medium text-slate-500">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runs.map((run) => (
+                    <tr key={run.id} className="border-b border-slate-50 last:border-0">
+                      <td className="py-2.5 px-3 text-slate-600">{timeAgo(run.started_at)}</td>
+                      <td className="py-2.5 px-3 text-slate-700 font-medium">{run.markets_scanned}</td>
+                      <td className="py-2.5 px-3 text-slate-700">{run.edges_found}</td>
+                      <td className="py-2.5 px-3 text-slate-700">{run.orders_placed}</td>
+                      <td className="py-2.5 px-3">
+                        {run.status === 'completed' ? (
+                          <Badge className="bg-emerald-50 text-emerald-700 text-[10px]">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            OK
+                          </Badge>
+                        ) : run.status === 'running' ? (
+                          <Badge className="bg-sky-50 text-sky-700 text-[10px] animate-pulse">
+                            <Activity className="w-3 h-3 mr-1" />
+                            Running
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="text-[10px]">
+                            <AlertCircle className="w-3 h-3 mr-1" />
+                            Failed
+                          </Badge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>

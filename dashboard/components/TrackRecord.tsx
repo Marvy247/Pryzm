@@ -3,7 +3,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { Trophy, TrendingUp, TrendingDown, Minus, Target } from 'lucide-react'
+import { Trophy, TrendingUp, TrendingDown, Minus, Target, BarChart3 } from 'lucide-react'
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 
 interface TrackRecordProps {
   stats: {
@@ -27,6 +28,21 @@ interface TrackRecordProps {
 export function TrackRecord({ stats, recentPositions = [] }: TrackRecordProps) {
   const winRate = stats.winRate ?? 0
   const winRatePercent = (winRate * 100).toFixed(1)
+
+  const settledPositions = recentPositions
+    .filter(p => p.settledAt && p.status !== 'open')
+    .sort((a, b) => new Date(a.settledAt!).getTime() - new Date(b.settledAt!).getTime())
+
+  let cumulativePnl = 0
+  const chartData = settledPositions.map(pos => {
+    cumulativePnl += pos.pnlUsd ?? 0
+    return {
+      time: new Date(pos.settledAt!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      pnl: cumulativePnl,
+    }
+  })
+
+  const showChart = chartData.length >= 2
 
   return (
     <div className="space-y-6">
@@ -101,6 +117,45 @@ export function TrackRecord({ stats, recentPositions = [] }: TrackRecordProps) {
           </CardContent>
         </Card>
       </div>
+
+      {showChart && (
+        <Card className="card-surface">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium text-slate-700 flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Cumulative P&L
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="pnlGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={cumulativePnl >= 0 ? "#10b981" : "#ef4444"} stopOpacity={0.2} />
+                      <stop offset="95%" stopColor={cumulativePnl >= 0 ? "#10b981" : "#ef4444"} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="time" tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                  <YAxis tick={{ fontSize: 10 }} stroke="#94a3b8" tickFormatter={v => `${v.toFixed(2)}`} />
+                  <Tooltip
+                    contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                    formatter={(value: number) => [`${value >= 0 ? '+' : ''}${value.toFixed(4)} STT`, 'P&L']}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="pnl"
+                    stroke={cumulativePnl >= 0 ? "#10b981" : "#ef4444"}
+                    strokeWidth={2}
+                    fill="url(#pnlGradient)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {recentPositions.length > 0 && (
         <Card className="card-surface">

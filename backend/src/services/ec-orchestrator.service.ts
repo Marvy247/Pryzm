@@ -37,6 +37,7 @@ class ECOrchestratorService extends EventEmitter {
   private settlementTimer: NodeJS.Timeout | null = null;
   private runLogs: ECLog[] = [];
   private lastRunAt: Date | null = null;
+  private cycleCount = 0;
 
   private log(message: string, type: ECLog['type'] = 'info', data?: any) {
     const entry: ECLog = { message, type, timestamp: Date.now(), data };
@@ -337,6 +338,7 @@ class ECOrchestratorService extends EventEmitter {
 
       await this.finalizeRun(runId, 'completed', marketsScanned, edgesFound, ordersPlaced, this.runLogs);
       this.lastRunAt = new Date();
+      this.cycleCount++;
       this.isRunning = false;
       return { success: true, summary };
 
@@ -346,6 +348,7 @@ class ECOrchestratorService extends EventEmitter {
       await this.finalizeRun(runId, 'failed', marketsScanned, edgesFound, ordersPlaced, this.runLogs, errMsg);
       this.isRunning = false;
       this.lastRunAt = new Date();
+      this.cycleCount++;
       return { success: false, summary: errMsg };
     }
   }
@@ -383,10 +386,11 @@ class ECOrchestratorService extends EventEmitter {
     return [...this.runLogs];
   }
 
-  getStatus(): { isRunning: boolean; lastRunAt: string | null } {
+  getStatus(): { isRunning: boolean; lastRunAt: string | null; cycleCount: number } {
     return {
       isRunning: this.isRunning,
       lastRunAt: this.lastRunAt?.toISOString() ?? null,
+      cycleCount: this.cycleCount,
     };
   }
 
