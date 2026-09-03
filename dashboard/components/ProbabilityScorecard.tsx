@@ -156,17 +156,17 @@ export function ProbabilityScorecard({
               <div className="space-y-2">
                 <p className="text-xs text-slate-500 uppercase tracking-wide">Agent Probability</p>
                 <span className="text-3xl font-bold text-slate-900">
-                  {(analysis.agentProbability * 100).toFixed(1)}%
+                  {((analysis.agentProbability ?? 0.5) * 100).toFixed(1)}%
                 </span>
-                <Progress value={analysis.agentProbability * 100} className="h-2" />
+                <Progress value={(analysis.agentProbability ?? 0.5) * 100} className="h-2" />
               </div>
 
               <div className="space-y-2">
                 <p className="text-xs text-slate-500 uppercase tracking-wide">Current Price</p>
                 <span className="text-3xl font-bold text-slate-900">
-                  {(analysis.currentPrice * 100).toFixed(1)}%
+                  {((analysis.currentPrice ?? 0.5) * 100).toFixed(1)}%
                 </span>
-                <Progress value={analysis.currentPrice * 100} className="h-2" />
+                <Progress value={(analysis.currentPrice ?? 0.5) * 100} className="h-2" />
               </div>
             </div>
 

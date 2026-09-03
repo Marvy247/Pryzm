@@ -47,8 +47,8 @@ function NoBar({ value }: { value: number }) {
 }
 
 export function MarketCard({ market, onExplain }: MarketCardProps) {
-  const yesProb = market.impliedUpProbability ?? market.yesPrice
-  const noProb = market.impliedDownProbability ?? market.noPrice
+  const yesProb = market.impliedUpProbability ?? market.yesPrice ?? 0.5
+  const noProb = market.impliedDownProbability ?? market.noPrice ?? 0.5
   const timeLeft = getTimeLeft(market.endDate)
   const isUrgent = timeLeft.includes('h') && !timeLeft.includes('d')
 
@@ -159,8 +159,9 @@ function getTimeLeft(endDate: string): string {
   return `${minutes}m`
 }
 
-function formatNumber(num: number): string {
-  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`
-  return num.toFixed(0)
+function formatNumber(num: number | undefined | null): string {
+  const n = num ?? 0
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`
+  return n.toFixed(0)
 }

@@ -57,7 +57,23 @@ export interface WalletBalance {
 export const eventContractsService = {
   async getMarkets(): Promise<Market[]> {
     const { data } = await api.get('/api/ec/markets')
-    return data.markets
+    return (data.markets ?? []).map((m: any) => ({
+      id: m.marketId,
+      marketId: m.marketId,
+      title: m.label ?? 'Unknown Market',
+      description: `${m.asset} ${m.intervalSec}s binary market`,
+      category: m.asset ?? 'BTC',
+      endDate: m.expiry ? new Date(m.expiry * 1000).toISOString() : new Date().toISOString(),
+      status: (m.secondsLeft ?? 0) > 0 ? 'active' : 'expired',
+      yesPrice: m.impliedUpProbability ?? 0.5,
+      noPrice: m.impliedDownProbability ?? 0.5,
+      volume: 0,
+      liquidity: 0,
+      impliedUpProbability: m.impliedUpProbability ?? 0.5,
+      impliedDownProbability: m.impliedDownProbability ?? 0.5,
+      bestBid: m.bestBid,
+      bestAsk: m.bestAsk,
+    }))
   },
 
   async runCycle(): Promise<{ message: string; startedAt: string }> {
