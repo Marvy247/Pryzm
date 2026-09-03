@@ -16,6 +16,8 @@ export interface Market {
   impliedDownProbability?: number
   bestBid?: number
   bestAsk?: number
+  intervalLabel?: string
+  timeLeft?: string
 }
 
 export interface Position {
@@ -61,23 +63,30 @@ export interface WalletBalance {
 export const eventContractsService = {
   async getMarkets(): Promise<Market[]> {
     const { data } = await api.get('/api/ec/markets')
-    return (data.markets ?? []).map((m: any) => ({
-      id: m.marketId,
-      marketId: m.marketId,
-      title: m.label ?? 'Unknown Market',
-      description: `${m.asset} ${m.intervalSec}s binary market`,
-      category: m.asset ?? 'BTC',
-      endDate: m.expiry ? new Date(m.expiry * 1000).toISOString() : new Date().toISOString(),
-      status: (m.secondsLeft ?? 0) > 0 ? 'active' : 'expired',
-      yesPrice: m.impliedUpProbability ?? 0.5,
-      noPrice: m.impliedDownProbability ?? 0.5,
-      volume: 0,
-      liquidity: 0,
-      impliedUpProbability: m.impliedUpProbability ?? 0.5,
-      impliedDownProbability: m.impliedDownProbability ?? 0.5,
-      bestBid: m.bestBid,
-      bestAsk: m.bestAsk,
-    }))
+    return (data.markets ?? []).map((m: any) => {
+      const assetName = m.asset === 'BTC' ? 'Bitcoin' : m.asset === 'ETH' ? 'Ethereum' : m.asset ?? 'Crypto'
+      const intervalLabel = m.intervalSec <= 60 ? '1-Minute' : m.intervalSec <= 300 ? '5-Minute' : m.intervalSec <= 900 ? '15-Minute' : m.intervalSec <= 3600 ? '1-Hour' : '4-Hour'
+      const timeLeft = m.secondsLeft > 0 ? ` · ${Math.floor(m.secondsLeft / 60)}m left` : ' · Expired'
+      return {
+        id: m.marketId,
+        marketId: m.marketId,
+        title: `${assetName} ${intervalLabel} Price`,
+        description: `Will ${assetName} price be UP or DOWN in the next ${intervalLabel.toLowerCase()}?`,
+        category: m.asset ?? 'BTC',
+        endDate: m.expiry ? new Date(m.expiry * 1000).toISOString() : new Date().toISOString(),
+        status: (m.secondsLeft ?? 0) > 0 ? 'active' : 'expired',
+        yesPrice: m.impliedUpProbability ?? 0.5,
+        noPrice: m.impliedDownProbability ?? 0.5,
+        volume: 0,
+        liquidity: 0,
+        impliedUpProbability: m.impliedUpProbability ?? 0.5,
+        impliedDownProbability: m.impliedDownProbability ?? 0.5,
+        bestBid: m.bestBid,
+        bestAsk: m.bestAsk,
+        intervalLabel: m.label,
+        timeLeft,
+      }
+    })
   },
 
   async runCycle(): Promise<{ message: string; startedAt: string }> {
