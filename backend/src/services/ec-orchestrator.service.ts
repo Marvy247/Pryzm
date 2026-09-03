@@ -69,19 +69,14 @@ class ECOrchestratorService extends EventEmitter {
     let ordersPlaced = 0;
 
     try {
-      // ── Step 0: Close expired positions ────────────────────────────────────
-      const now = Math.floor(Date.now() / 1000);
-      const { data: expiredPositions } = await supabaseService.getClient()
+      // ── Step 0: Close all stale open positions (simulated trades expire each cycle) ──
+      const { data: staleClosed } = await supabaseService.getClient()
         .from('ec_positions')
-        .select('id, label')
+        .update({ status: 'expired', settled_at: new Date().toISOString() })
         .eq('status', 'open')
-        .lt('expiry', now);
-      if (expiredPositions && expiredPositions.length > 0) {
-        await supabaseService.getClient()
-          .from('ec_positions')
-          .update({ status: 'expired', settled_at: new Date().toISOString() })
-          .in('id', expiredPositions.map((p: any) => p.id));
-        this.log(`Closed ${expiredPositions.length} expired positions`, 'info');
+        .select('id');
+      if (staleClosed && staleClosed.length > 0) {
+        this.log(`Closed ${staleClosed.length} previous positions`, 'info');
       }
 
       // ── Step 1: Scan live markets ──────────────────────────────────────────
