@@ -320,6 +320,16 @@ export default function EventContractsPage() {
                             Why?
                           </Button>
                         )}
+                        {pos.explorerUrl && (
+                          <a
+                            href={pos.explorerUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-violet-600 hover:text-violet-700 font-medium"
+                          >
+                            Tx ↗
+                          </a>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className={`font-semibold ${(pos.pnlUsd ?? 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>

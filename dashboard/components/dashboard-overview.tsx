@@ -204,27 +204,31 @@ export function DashboardOverview() {
       {recentLogs.length > 0 && (
         <Card className="card-surface">
           <CardContent className="p-6">
-            <h3 className="font-semibold text-slate-900 mb-4">Recent Activity</h3>
-            <div className="space-y-2">
-              {recentLogs.map((log, i) => (
-                <div key={i} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50/80">
-                  <Badge
-                    variant={log.level === 'error' ? 'destructive' : log.level === 'warn' ? 'secondary' : 'default'}
-                    className="shrink-0 text-[10px] mt-0.5"
-                  >
-                    {log.level}
-                  </Badge>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-slate-700 truncate">{log.message}</p>
-                    {log.agent && (
-                      <p className="text-xs text-sky-600 mt-0.5">{log.agent}</p>
-                    )}
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-slate-900">Recent Activity</h3>
+              <Badge variant="secondary" className="text-[10px]">
+                <Activity className="w-3 h-3 mr-1" />
+                Live
+              </Badge>
+            </div>
+            <div className="space-y-1">
+              {recentLogs.map((log, i) => {
+                const agentEmoji = log.agent?.includes('edge') ? '📊' : log.agent?.includes('orderbook') ? '📖' : log.agent?.includes('risk') ? '🛡️' : log.agent?.includes('executor') ? '⚡' : log.agent?.includes('sentiment') ? '🧠' : log.agent?.includes('scanner') ? '🔍' : '🤖'
+                const levelColor = log.level === 'error' ? 'text-red-500' : log.level === 'warn' ? 'text-amber-500' : 'text-emerald-500'
+                return (
+                  <div key={i} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-slate-50/80 transition-colors">
+                    <span className="text-sm shrink-0">{log.agent ? agentEmoji : '🤖'}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-slate-700 truncate">
+                        <span className="font-medium">{log.message}</span>
+                      </p>
+                    </div>
+                    <span className="text-[10px] text-slate-400 shrink-0 tabular-nums">
+                      {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </span>
                   </div>
-                  <span className="text-xs text-slate-400 shrink-0">
-                    {new Date(log.timestamp).toLocaleTimeString()}
-                  </span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </CardContent>
         </Card>

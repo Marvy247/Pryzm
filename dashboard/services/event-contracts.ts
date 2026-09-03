@@ -31,6 +31,8 @@ export interface Position {
   settledAt?: string
   label?: string
   reasoning?: any
+  txHash?: string
+  explorerUrl?: string
 }
 
 export interface RunLog {

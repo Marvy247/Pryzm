@@ -1,10 +1,15 @@
 import { Router, Request, Response } from 'express';
+import { createPublicClient, http, formatEther } from 'viem';
 import { ecOrchestrator } from '../services/ec-orchestrator.service';
 import { dreamDexService } from '../services/dreamdex.service';
 import { supabaseService } from '../services/supabase.service';
 import { logger } from '../utils/logger.util';
+import { SOMNIA_CHAIN } from '../config/somnia.config';
+import { config } from '../config/env.config';
 
 const router = Router();
+
+const SOMNIA_EXPLORER = 'https://shannon-explorer.somnia.network';
 
 // GET /api/ec/markets
 router.get('/markets', async (_req: Request, res: Response) => {
@@ -42,6 +47,31 @@ router.post('/run', async (_req: Request, res: Response) => {
 // GET /api/ec/status
 router.get('/status', (_req: Request, res: Response) => {
   res.json(ecOrchestrator.getStatus());
+});
+
+// GET /api/ec/wallet-balance
+router.get('/wallet-balance', async (_req: Request, res: Response) => {
+  try {
+    const address = config.SOMNIA_WALLET_ADDRESS;
+    if (!address) {
+      return res.json({ balance: { address: '0x0000...0000', balance: '0', chainId: SOMNIA_CHAIN.id } });
+    }
+    const client = createPublicClient({
+      chain: SOMNIA_CHAIN as any,
+      transport: http(SOMNIA_CHAIN.rpcUrls.default.http[0]),
+    });
+    const balance = await client.getBalance({ address: address as `0x${string}` });
+    res.json({
+      balance: {
+        address,
+        balance: formatEther(balance),
+        chainId: SOMNIA_CHAIN.id,
+      },
+    });
+  } catch (err) {
+    logger.error('GET /ec/wallet-balance failed:', err);
+    res.json({ balance: { address: '0x0000...0000', balance: '0', chainId: SOMNIA_CHAIN.id } });
+  }
 });
 
 // GET /api/ec/logs
@@ -93,6 +123,8 @@ router.get('/positions', async (_req: Request, res: Response) => {
       settledAt: row.settled_at,
       label: row.label,
       reasoning: row.reasoning,
+      txHash: row.tx_hash,
+      explorerUrl: row.tx_hash ? `${SOMNIA_EXPLORER}/tx/${row.tx_hash}` : null,
     }));
 
     res.json({ positions });
@@ -132,6 +164,8 @@ router.get('/history', async (req: Request, res: Response) => {
         settledAt: row.settled_at,
         label: row.label,
         reasoning: row.reasoning,
+        txHash: row.tx_hash,
+        explorerUrl: row.tx_hash ? `${SOMNIA_EXPLORER}/tx/${row.tx_hash}` : null,
       })),
       stats: { totalPnl, won, lost, winRate, total: data?.length ?? 0 },
     });

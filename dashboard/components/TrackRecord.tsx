@@ -22,6 +22,8 @@ interface TrackRecordProps {
     pnlUsd: number
     status: string
     settledAt?: string
+    txHash?: string
+    explorerUrl?: string
   }>
 }
 
@@ -205,6 +207,16 @@ export function TrackRecord({ stats, recentPositions = [] }: TrackRecordProps) {
                       )}>
                         {(pos.pnlUsd ?? 0) >= 0 ? '+' : ''}{(pos.pnlUsd ?? 0).toFixed(4)} STT
                       </p>
+                    )}
+                    {pos.explorerUrl && (
+                      <a
+                        href={pos.explorerUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-violet-500 hover:text-violet-600 mt-0.5 inline-block"
+                      >
+                        View Tx ↗
+                      </a>
                     )}
                   </div>
                 </div>
