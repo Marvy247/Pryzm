@@ -288,8 +288,8 @@ class ECOrchestratorService extends EventEmitter {
         const bookData = analysis?.bookData;
         const side = approved.side ?? analysis?.finalRecommendedSide;
         const limitPrice = side === 'UP'
-          ? (bookData?.bestAsk ?? (analysis?.impliedUpProbability + 0.02))
-          : (1 - (bookData?.bestBid ?? (1 - analysis?.impliedUpProbability + 0.02)));
+          ? (bookData?.bestAsk || ((analysis?.impliedUpProbability ?? 0.5) + 0.02))
+          : (1 - (bookData?.bestBid || (1 - (analysis?.impliedUpProbability ?? 0.5) + 0.02)));
 
         const simTxHash = '0x' + [...Array(64)].map(() => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('');
 
