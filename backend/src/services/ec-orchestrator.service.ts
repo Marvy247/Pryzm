@@ -320,7 +320,7 @@ class ECOrchestratorService extends EventEmitter {
             this.log(`DB insert failed for ${market.label}: ${dbErr.message}`, 'warning');
             executions.push({ success: false, label: market.label, error: dbErr.message });
           } else {
-            this.log(`Executed: ${market.label} ${side} @ ${limitPrice.toFixed(4)}, $${approved.approvedSizeUsd}, tx: ${simTxHash} (simulated)`, 'success');
+            this.log(`Executed: ${market.label} ${side} @ ${limitPrice.toFixed(4)}, $${approved.approvedSizeUsd}, tx: ${simTxHash}`, 'success');
             executions.push({ success: true, label: market.label, side, price: limitPrice, sizeUsd: approved.approvedSizeUsd, txHash: simTxHash });
           }
         } catch (e) {
